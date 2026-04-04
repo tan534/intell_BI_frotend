@@ -16,7 +16,6 @@ declare namespace API {
   };
 
   type deletePetParams = {
-    api_key?: string;
     /** Pet id to delete */
     petId: number;
   };
@@ -28,7 +27,7 @@ declare namespace API {
 
   type findPetsByStatusParams = {
     /** Status values that need to be considered for filter */
-    status: ('available' | 'pending' | 'sold')[];
+    status: ("available" | "pending" | "sold")[];
   };
 
   type findPetsByTagsParams = {
@@ -64,7 +63,7 @@ declare namespace API {
     quantity?: number;
     shipDate?: string;
     /** Order Status */
-    status?: 'placed' | 'approved' | 'delivered';
+    status?: "placed" | "approved" | "delivered";
     complete?: boolean;
   };
 
@@ -75,7 +74,7 @@ declare namespace API {
     photoUrls: string[];
     tags?: Tag[];
     /** pet status in the store */
-    status?: 'available' | 'pending' | 'sold';
+    status?: "available" | "pending" | "sold";
   };
 
   type Tag = {

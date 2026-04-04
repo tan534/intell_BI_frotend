@@ -62,13 +62,13 @@ exports[`Login Page should login success 1`] = `
               <span
                 class="ant-pro-form-login-title "
               >
-                Ant Design
+                智能 BI
               </span>
             </div>
             <div
               class="ant-pro-form-login-desc "
             >
-              Ant Design is the most influential web design specification in Xihu district
+              智能 BI is the most influential web design specification in Xihu district
             </div>
           </div>
           <div
@@ -472,9 +472,9 @@ exports[`Login Page should login success 1`] = `
               href="https://pro.ant.design"
               rel="noreferrer"
               target="_blank"
-              title="Ant Design Pro"
+              title="智能 BI"
             >
-              Ant Design Pro
+              智能 BI
             </a>
             <a
               class="ant-pro-global-footer-list-link"
@@ -508,9 +508,9 @@ exports[`Login Page should login success 1`] = `
               href="https://ant.design"
               rel="noreferrer"
               target="_blank"
-              title="Ant Design"
+              title="智能 BI"
             >
-              Ant Design
+              智能 BI
             </a>
           </div>
           <div
@@ -535,7 +535,7 @@ exports[`Login Page should login success 1`] = `
                 />
               </svg>
             </span>
-             Powered by Ant Desgin
+             Powered by Tan
           </div>
         </div>
       </footer>
@@ -606,13 +606,13 @@ exports[`Login Page should show login form 1`] = `
               <span
                 class="ant-pro-form-login-title "
               >
-                Ant Design
+                智能 BI
               </span>
             </div>
             <div
               class="ant-pro-form-login-desc "
             >
-              Ant Design is the most influential web design specification in Xihu district
+              智能 BI is the most influential web design specification in Xihu district
             </div>
           </div>
           <div
@@ -1015,9 +1015,9 @@ exports[`Login Page should show login form 1`] = `
               href="https://pro.ant.design"
               rel="noreferrer"
               target="_blank"
-              title="Ant Design Pro"
+              title="智能 BI"
             >
-              Ant Design Pro
+              智能 BI
             </a>
             <a
               class="ant-pro-global-footer-list-link"
@@ -1051,9 +1051,9 @@ exports[`Login Page should show login form 1`] = `
               href="https://ant.design"
               rel="noreferrer"
               target="_blank"
-              title="Ant Design"
+              title="智能 BI"
             >
-              Ant Design
+              智能 BI
             </a>
           </div>
           <div
@@ -1078,7 +1078,7 @@ exports[`Login Page should show login form 1`] = `
                 />
               </svg>
             </span>
-             Powered by Ant Desgin
+             Powered by Tan
           </div>
         </div>
       </footer>

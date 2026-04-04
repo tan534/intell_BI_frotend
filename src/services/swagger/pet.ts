@@ -1,13 +1,16 @@
 // @ts-ignore
 /* eslint-disable */
-import { request } from '@umijs/max';
+import { request } from "@umijs/max";
 
 /** Update an existing pet PUT /pet */
-export async function updatePet(body: API.Pet, options?: { [key: string]: any }) {
-  return request<any>('/pet', {
-    method: 'PUT',
+export async function updatePet(
+  body: API.Pet,
+  options?: { [key: string]: any }
+) {
+  return request<any>("/pet", {
+    method: "PUT",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     data: body,
     ...(options || {}),
@@ -16,10 +19,10 @@ export async function updatePet(body: API.Pet, options?: { [key: string]: any })
 
 /** Add a new pet to the store POST /pet */
 export async function addPet(body: API.Pet, options?: { [key: string]: any }) {
-  return request<any>('/pet', {
-    method: 'POST',
+  return request<any>("/pet", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     data: body,
     ...(options || {}),
@@ -30,11 +33,11 @@ export async function addPet(body: API.Pet, options?: { [key: string]: any }) {
 export async function getPetById(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getPetByIdParams,
-  options?: { [key: string]: any },
+  options?: { [key: string]: any }
 ) {
   const { petId: param0, ...queryParams } = params;
   return request<API.Pet>(`/pet/${param0}`, {
-    method: 'GET',
+    method: "GET",
     params: { ...queryParams },
     ...(options || {}),
   });
@@ -45,26 +48,16 @@ export async function updatePetWithForm(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.updatePetWithFormParams,
   body: { name?: string; status?: string },
-  options?: { [key: string]: any },
+  options?: { [key: string]: any }
 ) {
   const { petId: param0, ...queryParams } = params;
-  const formData = new FormData();
-
-  Object.keys(body).forEach((ele) => {
-    const item = (body as any)[ele];
-
-    if (item !== undefined && item !== null) {
-      formData.append(
-        ele,
-        typeof item === 'object' && !(item instanceof File) ? JSON.stringify(item) : item,
-      );
-    }
-  });
-
   return request<any>(`/pet/${param0}`, {
-    method: 'POST',
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
     params: { ...queryParams },
-    data: formData,
+    data: body,
     ...(options || {}),
   });
 }
@@ -72,16 +65,12 @@ export async function updatePetWithForm(
 /** Deletes a pet DELETE /pet/${param0} */
 export async function deletePet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.deletePetParams & {
-    // header
-    api_key?: string;
-  },
-  options?: { [key: string]: any },
+  params: API.deletePetParams,
+  options?: { [key: string]: any }
 ) {
   const { petId: param0, ...queryParams } = params;
   return request<any>(`/pet/${param0}`, {
-    method: 'DELETE',
-    headers: {},
+    method: "DELETE",
     params: { ...queryParams },
     ...(options || {}),
   });
@@ -93,31 +82,39 @@ export async function uploadFile(
   params: API.uploadFileParams,
   body: { additionalMetadata?: string; file?: string },
   file?: File,
-  options?: { [key: string]: any },
+  options?: { [key: string]: any }
 ) {
   const { petId: param0, ...queryParams } = params;
   const formData = new FormData();
 
   if (file) {
-    formData.append('file', file);
+    formData.append("file", file);
   }
 
   Object.keys(body).forEach((ele) => {
     const item = (body as any)[ele];
 
     if (item !== undefined && item !== null) {
-      formData.append(
-        ele,
-        typeof item === 'object' && !(item instanceof File) ? JSON.stringify(item) : item,
-      );
+      if (typeof item === "object" && !(item instanceof File)) {
+        if (item instanceof Array) {
+          item.forEach((f) => formData.append(ele, f || ""));
+        } else {
+          formData.append(
+            ele,
+            new Blob([JSON.stringify(item)], { type: "application/json" })
+          );
+        }
+      } else {
+        formData.append(ele, item);
+      }
     }
   });
 
   return request<API.ApiResponse>(`/pet/${param0}/uploadImage`, {
-    method: 'POST',
+    method: "POST",
     params: { ...queryParams },
     data: formData,
-    requestType: 'form',
+    requestType: "form",
     ...(options || {}),
   });
 }
@@ -126,10 +123,10 @@ export async function uploadFile(
 export async function findPetsByStatus(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.findPetsByStatusParams,
-  options?: { [key: string]: any },
+  options?: { [key: string]: any }
 ) {
-  return request<API.Pet[]>('/pet/findByStatus', {
-    method: 'GET',
+  return request<API.Pet[]>("/pet/findByStatus", {
+    method: "GET",
     params: {
       ...params,
     },
@@ -141,10 +138,10 @@ export async function findPetsByStatus(
 export async function findPetsByTags(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.findPetsByTagsParams,
-  options?: { [key: string]: any },
+  options?: { [key: string]: any }
 ) {
-  return request<API.Pet[]>('/pet/findByTags', {
-    method: 'GET',
+  return request<API.Pet[]>("/pet/findByTags", {
+    method: "GET",
     params: {
       ...params,
     },

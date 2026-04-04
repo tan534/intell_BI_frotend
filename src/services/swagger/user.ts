@@ -1,11 +1,14 @@
 // @ts-ignore
 /* eslint-disable */
-import { request } from '@umijs/max';
+import { request } from "@umijs/max";
 
-/** Create user This can only be done by the logged in user. POST /user */
-export async function createUser(body: API.User, options?: { [key: string]: any }) {
-  return request<any>('/user', {
-    method: 'POST',
+/** Create user This can only be done by the logged in user. 返回值: successful operation POST /user */
+export async function createUser(
+  body: API.User,
+  options?: { [key: string]: any }
+) {
+  return request<any>("/user", {
+    method: "POST",
     data: body,
     ...(options || {}),
   });
@@ -15,11 +18,11 @@ export async function createUser(body: API.User, options?: { [key: string]: any 
 export async function getUserByName(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getUserByNameParams,
-  options?: { [key: string]: any },
+  options?: { [key: string]: any }
 ) {
   const { username: param0, ...queryParams } = params;
   return request<API.User>(`/user/${param0}`, {
-    method: 'GET',
+    method: "GET",
     params: { ...queryParams },
     ...(options || {}),
   });
@@ -30,11 +33,11 @@ export async function updateUser(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.updateUserParams,
   body: API.User,
-  options?: { [key: string]: any },
+  options?: { [key: string]: any }
 ) {
   const { username: param0, ...queryParams } = params;
   return request<any>(`/user/${param0}`, {
-    method: 'PUT',
+    method: "PUT",
     params: { ...queryParams },
     data: body,
     ...(options || {}),
@@ -45,32 +48,35 @@ export async function updateUser(
 export async function deleteUser(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.deleteUserParams,
-  options?: { [key: string]: any },
+  options?: { [key: string]: any }
 ) {
   const { username: param0, ...queryParams } = params;
   return request<any>(`/user/${param0}`, {
-    method: 'DELETE',
+    method: "DELETE",
     params: { ...queryParams },
     ...(options || {}),
   });
 }
 
-/** Creates list of users with given input array POST /user/createWithArray */
+/** Creates list of users with given input array 返回值: successful operation POST /user/createWithArray */
 export async function createUsersWithArrayInput(
   body: API.User[],
-  options?: { [key: string]: any },
+  options?: { [key: string]: any }
 ) {
-  return request<any>('/user/createWithArray', {
-    method: 'POST',
+  return request<any>("/user/createWithArray", {
+    method: "POST",
     data: body,
     ...(options || {}),
   });
 }
 
-/** Creates list of users with given input array POST /user/createWithList */
-export async function createUsersWithListInput(body: API.User[], options?: { [key: string]: any }) {
-  return request<any>('/user/createWithList', {
-    method: 'POST',
+/** Creates list of users with given input array 返回值: successful operation POST /user/createWithList */
+export async function createUsersWithListInput(
+  body: API.User[],
+  options?: { [key: string]: any }
+) {
+  return request<any>("/user/createWithList", {
+    method: "POST",
     data: body,
     ...(options || {}),
   });
@@ -80,10 +86,10 @@ export async function createUsersWithListInput(body: API.User[], options?: { [ke
 export async function loginUser(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.loginUserParams,
-  options?: { [key: string]: any },
+  options?: { [key: string]: any }
 ) {
-  return request<string>('/user/login', {
-    method: 'GET',
+  return request<string>("/user/login", {
+    method: "GET",
     params: {
       ...params,
     },
@@ -91,10 +97,10 @@ export async function loginUser(
   });
 }
 
-/** Logs out current logged in user session GET /user/logout */
+/** Logs out current logged in user session 返回值: successful operation GET /user/logout */
 export async function logoutUser(options?: { [key: string]: any }) {
-  return request<any>('/user/logout', {
-    method: 'GET',
+  return request<any>("/user/logout", {
+    method: "GET",
     ...(options || {}),
   });
 }
