@@ -105,3 +105,15 @@ export async function updateChartUsingPost(
     ...(options || {}),
   });
 }
+
+/** 生成图表 POST /api/chart/gen */
+export async function genChartUsingPost(
+  body: FormData,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseLong_>("/api/chart/gen", {
+    method: "POST",
+    data: body,
+    ...(options || {}),
+  });
+}

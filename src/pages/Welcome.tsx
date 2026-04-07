@@ -128,7 +128,7 @@ const Welcome: React.FC = () => {
               width: '65%',
             }}
           >
-            智能 BI 是一个整合了 umi，智能 BI 和 ProComponents
+            智能 BI 是一个整合了 umi, 智能 BI 和 ProComponents
             的脚手架方案。致力于在设计规范和基础组件的基础上，继续向上构建，提炼出典型模板/业务组件/配套设计资源，进一步提升企业级中后台产品设计研发过程中的『用户』和『设计者』的体验。
           </p>
           <div
