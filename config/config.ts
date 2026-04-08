@@ -141,7 +141,7 @@ export default defineConfig({
   openAPI: [
   {
     requestLibPath: "import { request } from '@umijs/max'",
-    schemaPath: "http://localhost:8088/api/v2/api-docs",
+    schemaPath: REACT_APP_ENV === 'dev' ? "http://localhost:8088/api/v2/api-docs" : "https://your-production-api.com/api/v2/api-docs",
     projectName: 'intell_Bi',
     mock: false,
   },

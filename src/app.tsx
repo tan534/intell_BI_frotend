@@ -1,11 +1,9 @@
 import { AvatarDropdown, AvatarName, Footer, Question } from '@/components';
 import { LinkOutlined } from '@ant-design/icons';
-import type { Settings as LayoutSettings } from '@ant-design/pro-components';
 import { SettingDrawer } from '@ant-design/pro-components';
 import '@ant-design/v5-patch-for-react-19';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
 import { history, Link } from '@umijs/max';
-import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
 import { getLoginUserUsingGet } from './services/intell_Bi/userController';
 const isDev = process.env.NODE_ENV === 'development';
@@ -39,7 +37,6 @@ export async function getInitialState(): Promise<{
   };
 }
 
-// ProLayout 支持的api https://procomponents.ant.design/components/layout
 export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) => {
   return {
     actionsRender: () => [<Question key="doc" />],

@@ -1,8 +1,8 @@
 import { Footer } from '@/components';
-import { PlusOutlined, ArrowLeftOutlined, UploadOutlined } from '@ant-design/icons';
-import { ProForm, ProFormText, ProFormTextArea, ProFormSelect, ProFormUploadButton } from '@ant-design/pro-components';
+import { PlusOutlined, ArrowLeftOutlined, UploadOutlined,  } from '@ant-design/icons'; // ✅ 补充 Button 导入
+import { ProForm, ProFormText, ProFormTextArea, ProFormSelect} from '@ant-design/pro-components'; // ✅ 替换 ProFormUploadButton 为 ProFormUpload
 import { Helmet, history, Link } from '@umijs/max';
-import { Alert, App, Card, Space, message } from 'antd';
+import { Button, Card, Space, message } from 'antd'; // ✅ 移除无用的 Alert/App 导入
 import { createStyles } from 'antd-style';
 import React, { useState, useRef } from 'react';
 import { RcFile, UploadFile, UploadProps } from 'antd/es/upload/interface';
@@ -52,6 +52,8 @@ const useStyles = createStyles(({ token }) => {
       marginTop: 8,
       color: token.colorTextSecondary,
       fontSize: token.fontSizeSM,
+      paddingLeft: 12, // ✅ 新增：和表单标签对齐
+      lineHeight: 1.4, // ✅ 新增：提升可读性
     },
   };
 });
@@ -65,18 +67,18 @@ const CHART_TYPE_OPTIONS = [
   { label: '直方图', value: 'histogram' },
 ];
 
-// 文件格式校验
+// 文件格式校验（仅支持Excel）
 const beforeUpload = (file: RcFile) => {
-  const isExcelOrCsv = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-    || file.type === 'application/vnd.ms-excel' 
-    || file.type === 'text/csv';
-  if (!isExcelOrCsv) {
-    message.error('仅支持上传 .xlsx / .xls / .csv 格式的文件！');
+  // ✅ 仅校验Excel格式，删除CSV相关
+  const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    || file.type === 'application/vnd.ms-excel';
+  if (!isExcel) {
+    message.error('仅支持上传 .xlsx / .xls 格式的Excel文件！');
     return false;
   }
   const isLt2M = file.size / 1024 / 1024 < 2;
   if (!isLt2M) {
-    message.error('文件大小不能超过 2MB!');
+    message.error('文件大小不能超过 2MB！'); // ✅ 修正标点符号
     return false;
   }
   return true;
@@ -100,7 +102,7 @@ const AddChart: React.FC = () => {
     try {
       // 1. 校验文件是否上传
       if (fileRef.current.length === 0) {
-        message.error('请先上传数据文件！');
+        message.error('请先上传Excel数据文件！'); // ✅ 提示更精准
         return;
       }
 
@@ -108,8 +110,14 @@ const AddChart: React.FC = () => {
       
       // 2. 构建FormData（文件+表单参数）
       const formData = new FormData();
-      // 添加文件
-      formData.append('file', fileRef.current[0].originFileObj as RcFile);
+      // 添加文件（类型断言确保安全）
+      const originFile = fileRef.current[0].originFileObj;
+      if (!originFile) {
+        message.error('文件解析失败，请重新上传！');
+        setSubmitting(false);
+        return;
+      }
+      formData.append('file', originFile as RcFile);
       // 添加表单参数
       formData.append('chartName', values.chartName);
       formData.append('goal', values.goal);
@@ -119,9 +127,11 @@ const AddChart: React.FC = () => {
       const res = await genChartUsingPost(formData);
       
       if (res.code === 0) {
-        message.success(`图表生成成功！图表ID：${res.data.id || res.data}`);
+        // ✅ 兼容data为对象或数字的情况
+        const chartId = typeof res.data === 'object' ? res.data.id : res.data;
+        message.success(`图表生成成功！图表ID：${chartId}`);
         // 跳转至图表详情/列表页
-        history.push(`/chart/detail/${res.data.id || res.data}`);
+        history.push(`/chart/detail/${chartId}`);
         return;
       } else {
         message.error(res.message || '生成图表失败，请重试');
@@ -149,7 +159,7 @@ const AddChart: React.FC = () => {
           {/* 表单头部 */}
           <div className={styles.formHeader}>
             <span className={styles.formTitle}>新建智能图表</span>
-            <Link to="/chart/list">
+            <Link to="/home">
               <ArrowLeftOutlined /> 返回列表
             </Link>
           </div>
@@ -162,13 +172,15 @@ const AddChart: React.FC = () => {
               searchConfig: {
                 submitText: '生成图表',
                 resetText: '重置',
+                // ✅ 禁用状态同步
+                submitButtonProps: { loading: submitting },
               },
-              render: (props, doms) => {
+              render: (props, dom) => {
                 return (
                   <Space style={{ marginTop: 24 }}>
                     <div style={{ flex: 1 }}></div>
-                    {doms.resetButton}
-                    {doms.submitButton}
+                    {dom.resetButton}
+                    {dom.submitButton}
                   </Space>
                 );
               },
@@ -217,30 +229,31 @@ const AddChart: React.FC = () => {
               rules={[{ required: true, message: '请选择图表类型！' }]}
             />
 
-            {/* 文件上传（核心补充） */}
-            <ProFormUploadButton
+            {/* 文件上传（核心补充：仅支持Excel） */}
+            <ProFormUpload
               name="file"
               label="数据文件"
               valuePropName="fileList"
               fileList={fileList}
               onChange={handleFileChange}
-             // beforeUpload={beforeUpload}
+              beforeUpload={beforeUpload}
               fieldProps={{
-                accept: '.xlsx,.xls,.csv', // 限制文件格式
+                accept: '.xlsx,.xls', // ✅ 仅保留Excel格式
                 maxCount: 1, // 仅允许上传1个文件
                 showUploadList: true, // 显示文件上传列表
                 customRequest: () => {}, // 禁用自动上传（手动在提交时上传）
               }}
-              title={
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <UploadOutlined />
-                  <span>点击上传数据文件</span>
-                </div>
-              }
-              rules={[{ required: true, message: '请上传数据文件！,文件格式仅支持：.xlsx / .xls' }]}
-            />
+              rules={[{ 
+                required: true, 
+                message: '请上传Excel数据文件，仅支持 .xlsx / .xls 格式' 
+              }]}
+            >
+              <Button icon={<UploadOutlined />} size="middle" type="default">
+                点击上传Excel数据文件
+              </Button>
+            </ProFormUpload>
             <div className={styles.uploadTip}>
-              支持格式：.xlsx / .xls/| 最大文件大小:2MB
+              支持格式：.xlsx / .xls | 最大文件大小: 2MB
             </div>
           </ProForm>
         </Card>

@@ -1,183 +1,208 @@
 import { Footer } from '@/components';
-import {
-  AlipayCircleOutlined,
-  LockOutlined,
-  TaobaoCircleOutlined,
-  UserOutlined,
-  WeiboCircleOutlined,
-  UserAddOutlined,
-} from '@ant-design/icons';
-import {
-  LoginForm,
-  ProFormText,
-} from '@ant-design/pro-components';
-import { Helmet, useModel, Link, history } from '@umijs/max';
-import { Alert, App, Tabs } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
+import { ProTable, ProCard } from '@ant-design/pro-components';
+import { Button, Empty, message, Spin } from 'antd';
+import { Helmet, history, useAccess, useModel } from '@umijs/max';
 import { createStyles } from 'antd-style';
-import React, { useEffect, useState } from 'react';
-import { flushSync } from 'react-dom';
+import React, { useState, useEffect } from 'react';
 import Settings from '../../../config/defaultSettings';
-import { listChartByPageUsingPost } from '@/services/intell_Bi/chartController';
-import { getLoginUserUsingGet,userLoginUsingPost} from '@/services/intell_Bi/userController';
+import {
+  listChartByPageUsingPost,
+  deleteChartUsingPost,
+} from '@/services/intell_Bi/chartController';
+
 const useStyles = createStyles(({ token }) => {
   return {
-    action: {
-      marginLeft: '8px',
-      color: 'rgba(0, 0, 0, 0.2)',
-      fontSize: '24px',
-      verticalAlign: 'middle',
-      cursor: 'pointer',
-      transition: 'color 0.3s',
-      '&:hover': {
-        color: token.colorPrimaryActive,
-      },
-    },
     container: {
+      minHeight: '100vh',
+      background: token.colorBgContainer,
+    },
+    header: {
       display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      overflow: 'auto',
-      backgroundImage:
-        "url('https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/V-_oS6r-i7wAAAAAAAAAAAAAFl94AQBr')",
-      backgroundSize: '100% 100%',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 24,
+      padding: '16px 24px',
+      background: token.colorBgLayout,
+      borderRadius: token.borderRadiusLG,
+      boxShadow: token.boxShadow,
+    },
+    title: {
+      fontSize: token.fontSizeHeading2,
+      fontWeight: 600,
+      color: token.colorTextHeading,
     },
   };
 });
 
-const Login: React.FC = () => {
-  const [userLoginState, setUserLoginState] = useState<API.LoginResult>({});
-  const [type, setType] = useState<string>('account');
-  const { initialState, setInitialState } = useModel('@@initialState');
+const Home: React.FC = () => {
   const { styles } = useStyles();
-  const { message } = App.useApp();
+  const { initialState } = useModel('@@initialState');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [chartList, setChartList] = useState<API.Chart[]>([]);
+  const [total, setTotal] = useState<number>(0);
 
-  /*
-    * 登录成功后获取用户信息，包含权限信息
-  */
-  const fetchUserInfo = async () => {
-    const userInfo = await getLoginUserUsingGet();
-    if (userInfo?.code === 0 && userInfo.data) {
-      flushSync(() => {
-        setInitialState((s) => ({
-          ...s,
-          currentUser: userInfo.data,
-        }));
-      });
-      return true;
-    }
-    return false;
-  };
-
-  const handleSubmit = async (values: API.UserLoginRequest) => {
+  // 获取图表列表
+  const fetchChartList = async (params: API.ChartQueryRequest) => {
     try {
-      // 登录
-      const res = await userLoginUsingPost(values);
-      if (res.code === 0) {
-        const defaultLoginSuccessMessage = '登录成功！';
-        message.success(defaultLoginSuccessMessage);
-        const fetched = await fetchUserInfo();
-        if (fetched) {
-          const urlParams = new URL(window.location.href).searchParams;
-          history.push(urlParams.get('redirect') || '/');
-        } else {
-          message.error('登录成功，但获取用户信息失败，请重试');
-        }
-        return;
+      setLoading(true);
+      const res = await listChartByPageUsingPost({
+        current: params.current || 1,
+        pageSize: params.pageSize || 10,
+        ...params,
+      });
+      if (res.code === 0 && res.data) {
+        setChartList(res.data.records || []);
+        setTotal(res.data.total || 0);
       } else {
-        message.error(res.message);
+        message.error(res.message || '获取图表列表失败');
       }
     } catch (error) {
-      const defaultLoginFailureMessage = '登录失败，请重试！';
-      console.log(error);
-      message.error(defaultLoginFailureMessage);
+      console.error('获取图表列表异常：', error);
+      message.error('获取图表列表失败，服务器异常');
+    } finally {
+      setLoading(false);
     }
   };
+
+  // 初始加载图表列表
+  useEffect(() => {
+    fetchChartList({});
+  }, []);
+
+  // 删除图表
+  const handleDelete = async (id: number) => {
+    try {
+      const res = await deleteChartUsingPost({ id });
+      if (res.code === 0) {
+        message.success('删除图表成功');
+        // 重新获取图表列表
+        fetchChartList({});
+      } else {
+        message.error(res.message || '删除图表失败');
+      }
+    } catch (error) {
+      console.error('删除图表异常：', error);
+      message.error('删除图表失败，服务器异常');
+    }
+  };
+
+  // 编辑图表
+  const handleEdit = (id: number) => {
+    history.push(`/add?id=${id}`);
+  };
+
+  // 查看图表详情
+  const handleView = (id: number) => {
+    history.push(`/chart/detail/${id}`);
+  };
+
+  // 新建图表
+  const handleAdd = () => {
+    history.push('/add');
+  };
+
+  // 表格列配置
+  const columns = [
+    {
+      title: '图表名称',
+      dataIndex: 'goal',
+      key: 'goal',
+      ellipsis: true,
+    },
+    {
+      title: '图表类型',
+      dataIndex: 'chartType',
+      key: 'chartType',
+      valueEnum: {
+        line: { text: '折线图' },
+        bar: { text: '柱状图' },
+        pie: { text: '饼图' },
+        scatter: { text: '散点图' },
+        histogram: { text: '直方图' },
+      },
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'createTime',
+      key: 'createTime',
+      valueType: 'date',
+    },
+    {
+      title: '操作',
+      key: 'action',
+      valueType: 'option',
+      render: (_: any, record: API.Chart) => [
+        <Button
+          key="view"
+          icon={<EyeOutlined />}
+          onClick={() => handleView(record.id!)}
+        >
+          查看
+        </Button>,
+        <Button
+          key="edit"
+          icon={<EditOutlined />}
+          onClick={() => handleEdit(record.id!)}
+        >
+          编辑
+        </Button>,
+        <Button
+          key="delete"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => handleDelete(record.id!)}
+        >
+          删除
+        </Button>,
+      ],
+    },
+  ];
+
   return (
     <div className={styles.container}>
       <Helmet>
         <title>
-          {'登录'}
+          {'图表列表'}
           {Settings.title && ` - ${Settings.title}`}
         </title>
       </Helmet>
-      <div
-        style={{
-          flex: '1',
-          padding: '32px 0',
-        }}
-      >
-        <LoginForm
-          contentStyle={{
-            minWidth: 280,
-            maxWidth: '75vw',
-          }}
-          logo={<img alt="logo" src="/logo.svg" />}
-          title="智能 BI"
-          subTitle={'一个为您准确快捷分析数据的智能平台'}
-          onFinish={async (values) => {
-            await handleSubmit(values as API.UserLoginRequest);
-          }}
+      
+      {/* 页面头部 */}
+      <div className={styles.header}>
+        <h1 className={styles.title}>图表列表</h1>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={handleAdd}
         >
-          <Tabs
-            activeKey={type}
-            onChange={setType}
-            centered
-            items={[
-              {
-                key: 'account',
-                label: '账户密码登录',
-              },
-            ]}
-          />
-          {type === 'account' && (
-            <>
-              <ProFormText
-                name="userAccount"
-                fieldProps={{
-                  size: 'large',
-                  prefix: <UserOutlined />,
-                }}
-                placeholder={'请输入用户名'}
-                rules={[
-                  {
-                    required: true,
-                    message: '用户名是必填项！',
-                  },
-                ]}
-              />
-              <ProFormText.Password
-                name="userPassword"
-                fieldProps={{
-                  size: 'large',
-                  prefix: <LockOutlined />,
-                }}
-                placeholder={'请输入密码'}
-                rules={[
-                  {
-                    required: true,
-                    message: '密码是必填项！',
-                  },
-                ]}
-              />
-            </>
-          )}
-
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              marginBottom: 24,
-            }}
-          >
-            <Link to="/user/register" style={{ display: 'inline-flex', alignItems: 'center' }}>
-              <UserAddOutlined style={{ marginRight: 8 }} />
-              注册
-            </Link>
-          </div>
-        </LoginForm>
+          新建图表
+        </Button>
       </div>
+
+      {/* 图表列表 */}
+      <ProCard>
+        <ProTable
+          columns={columns}
+          dataSource={chartList}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            total,
+            pageSize: 10,
+            onChange: (current, pageSize) => {
+              fetchChartList({ current, pageSize });
+            },
+          }}
+          locale={{
+            emptyText: <Empty description="暂无图表数据" />,
+          }}
+        />
+      </ProCard>
+
       <Footer />
     </div>
   );
 };
-export default Login;
+
+export default Home;
