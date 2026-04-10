@@ -2,20 +2,7 @@
 /* eslint-disable */
 import { request } from "@umijs/max";
 
-/** 创建图表 POST /api/chart/add */
-export async function addChartUsingPost(
-  body: API.ChartAddRequest,
-  options?: { [key: string]: any }
-) {
-  return request<API.BaseResponseLong_>("/api/chart/add", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    data: body,
-    ...(options || {}),
-  });
-}
+
 
 /** 删除图表 POST /api/chart/delete */
 export async function deleteChartUsingPost(
@@ -111,7 +98,7 @@ export async function genChartUsingPost(
   body: FormData,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseLong_>("/api/chart/gen", {
+  return request<API.BaseResponseGenChart_>("/api/chart/gen", {
     method: "POST",
     data: body,
     ...(options || {}),

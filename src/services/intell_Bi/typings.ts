@@ -1,4 +1,16 @@
 declare namespace API {
+
+interface BaseResponseGenChart_ {
+  code: number;
+  message: string;
+  data: {
+    genChartStr: string;
+    genResult: string | string[];
+    chartId?: number;
+  };
+}
+
+
   type BaseResponseBoolean_ = {
     code?: number;
     data?: boolean;
@@ -76,12 +88,6 @@ declare namespace API {
     isDelete?: number;
     updateTime?: string;
     userId?: number;
-  };
-
-  type ChartAddRequest = {
-    chartData?: string;
-    chartType?: string;
-    goal?: string;
   };
 
   type ChartEditRequest = {

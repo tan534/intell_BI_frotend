@@ -1,265 +1,415 @@
-import { Footer } from '@/components';
-import { PlusOutlined, ArrowLeftOutlined, UploadOutlined,  } from '@ant-design/icons'; // ✅ 补充 Button 导入
-import { ProForm, ProFormText, ProFormTextArea, ProFormSelect} from '@ant-design/pro-components'; // ✅ 替换 ProFormUploadButton 为 ProFormUpload
-import { Helmet, history, Link } from '@umijs/max';
-import { Button, Card, Space, message } from 'antd'; // ✅ 移除无用的 Alert/App 导入
-import { createStyles } from 'antd-style';
-import React, { useState, useRef } from 'react';
-import { RcFile, UploadFile, UploadProps } from 'antd/es/upload/interface';
-import Settings from '../../../config/defaultSettings';
-// 导入生成图表的接口（替换原有add接口，因为上传文件需要调用/gen）
 import { genChartUsingPost } from '@/services/intell_Bi/chartController';
+import { UploadOutlined } from '@ant-design/icons';
+import { Button, Card, Form, Input, message, Select, Space, Spin, Upload } from 'antd';
+import TextArea from 'antd/es/input/TextArea';
+import React, { useState, useEffect } from 'react';
+import ReactECharts from 'echarts-for-react';
+import type { UploadFile } from 'antd/es/upload/interface';
 
-// 样式配置（和登录页风格统一）
-const useStyles = createStyles(({ token }) => {
-  return {
-    container: {
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      overflow: 'auto',
-      backgroundImage:
-        "url('https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/V-_oS6r-i7wAAAAAAAAAAAAAFl94AQBr')",
-      backgroundSize: '100% 100%',
-    },
-    cardContainer: {
-      flex: 1,
-      padding: '32px 0',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'flex-start',
-    },
-    formCard: {
-      minWidth: 400,
-      maxWidth: 600,
-      width: '100%',
-      padding: '24px',
-      borderRadius: token.borderRadiusLG,
-      boxShadow: token.boxShadow,
-    },
-    formHeader: {
-      marginBottom: '24px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    formTitle: {
-      fontSize: token.fontSizeHeading3,
-      fontWeight: 600,
-      color: token.colorTextHeading,
-    },
-    uploadTip: {
-      marginTop: 8,
-      color: token.colorTextSecondary,
-      fontSize: token.fontSizeSM,
-      paddingLeft: 12, // ✅ 新增：和表单标签对齐
-      lineHeight: 1.4, // ✅ 新增：提升可读性
-    },
-  };
-});
-
-// 图表类型选项（和AI模板/后端一致）
+// 图表类型映射（和后端保持一致，value对应ECharts type）
 const CHART_TYPE_OPTIONS = [
-  { label: '折线图', value: 'line' },
-  { label: '柱状图', value: 'bar' },
-  { label: '饼图', value: 'pie' },
-  { label: '散点图', value: 'scatter' },
-  { label: '直方图', value: 'histogram' },
+  { value: 'line', label: '折线图' },
+  { value: 'bar', label: '柱状图' },
+  { value: 'stack', label: '堆叠图' },
+  { value: 'pie', label: '饼图' },
+  { value: 'radar', label: '雷达图' },
 ];
 
-// 文件格式校验（仅支持Excel）
-const beforeUpload = (file: RcFile) => {
-  // ✅ 仅校验Excel格式，删除CSV相关
-  const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-    || file.type === 'application/vnd.ms-excel';
-  if (!isExcel) {
-    message.error('仅支持上传 .xlsx / .xls 格式的Excel文件！');
-    return false;
-  }
-  const isLt2M = file.size / 1024 / 1024 < 2;
-  if (!isLt2M) {
-    message.error('文件大小不能超过 2MB！'); // ✅ 修正标点符号
-    return false;
-  }
-  return true;
+// 文件格式校验
+const isCsvFile = (file: File) => {
+  const fileName = file.name.toLowerCase();
+  return fileName.endsWith('.csv') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
 };
 
 const AddChart: React.FC = () => {
-  const { styles } = useStyles();
+  const [form] = Form.useForm();
+  const [chartResult, setChartResult] = useState<{
+    genResult: string;
+    chartId?: number;
+  }>();
+  const [echartsOption, setEchartsOption] = useState<any>(null); // 初始null，避免空对象渲染
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
-  const fileRef = useRef<UploadFile[]>([]); // 存储上传的文件
+  const [chartError, setChartError] = useState<string>('');
 
-  // 文件上传回调（暂存文件，不上传至服务器）
-  const handleFileChange: UploadProps['onChange'] = ({ fileList: newFileList }) => {
-    setFileList(newFileList);
-    // 只保留已上传/待上传的文件
-    fileRef.current = newFileList.filter(file => file.status !== 'removed');
-  };
-
-  // 提交表单+文件上传逻辑
-  const handleSubmit = async (values: API.ChartGenRequest) => {
-    try {
-      // 1. 校验文件是否上传
-      if (fileRef.current.length === 0) {
-        message.error('请先上传Excel数据文件！'); // ✅ 提示更精准
-        return;
+  // 修复：图表容器自适应高度
+  const [chartHeight, setChartHeight] = useState<number>(400);
+  useEffect(() => {
+    const updateHeight = () => {
+      const card = document.getElementById('chart-card');
+      if (card) {
+        setChartHeight(card.clientHeight - 60); // 减去标题栏高度
       }
+    };
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, []);
 
-      setSubmitting(true);
-      
-      // 2. 构建FormData（文件+表单参数）
+  /**
+   * 提交分析请求
+   */
+  const onFinish = async (values: any) => {
+    // 1. 重置状态
+    setSubmitting(true);
+    setChartResult(undefined);
+    setEchartsOption(null);
+    setChartError('');
+
+    // 2. 校验文件
+    if (fileList.length === 0) {
+      message.error('请先上传CSV/Excel文件');
+      setSubmitting(false);
+      return;
+    }
+    const file = fileList[0].originFileObj;
+    if (!file || !isCsvFile(file)) {
+      message.error('仅支持上传CSV/XLSX/XLS文件');
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      // 3. 构建FormData
       const formData = new FormData();
-      // 添加文件（类型断言确保安全）
-      const originFile = fileRef.current[0].originFileObj;
-      if (!originFile) {
-        message.error('文件解析失败，请重新上传！');
+      formData.append('goal', values.goal);
+      formData.append('chartName', values.name);
+      formData.append('chartType', values.chartType);
+      formData.append('file', file);
+
+      // 4. 调用后端接口
+      const res: API.BaseResponseGenChart_ = await genChartUsingPost(formData);
+
+      // 5. 校验接口响应
+      if (res.code !== 0) {
+        const errorMsg = res.message || '分析失败，请检查数据后重试';
+        message.error(errorMsg);
+        setChartError(errorMsg);
         setSubmitting(false);
         return;
       }
-      formData.append('file', originFile as RcFile);
-      // 添加表单参数
-      formData.append('chartName', values.chartName);
-      formData.append('goal', values.goal);
-      formData.append('chartType', values.chartType);
 
-      // 3. 调用生成图表接口（含文件上传）
-      const res = await genChartUsingPost(formData);
-      
-      if (res.code === 0) {
-        // ✅ 兼容data为对象或数字的情况
-        const chartId = typeof res.data === 'object' ? res.data.id : res.data;
-        message.success(`图表生成成功！图表ID：${chartId}`);
-        // 跳转至图表详情/列表页
-        history.push(`/chart/detail/${chartId}`);
+      if (!res.data) {
+        const errorMsg = '未获取到分析结果，请重新上传数据';
+        message.error(errorMsg);
+        setChartError(errorMsg);
+        setSubmitting(false);
         return;
-      } else {
-        message.error(res.message || '生成图表失败，请重试');
       }
-    } catch (error) {
-      console.error('生成图表异常：', error);
-      message.error('生成图表失败，服务器异常，请重试！');
+
+      // 6. 解析ECharts配置（修复：处理AI返回的JS格式/转义问题）
+      let chartOption: any = null;
+      try {
+        let genChartStr = res.data.genChartStr || '';
+        // 修复：处理AI返回的option = {}格式
+        if (genChartStr.startsWith('option = ')) {
+          genChartStr = genChartStr.replace('option = ', '').replace(';', '');
+        }
+        // 修复：单引号转双引号，处理JSON格式
+        genChartStr = genChartStr.replace(/'/g, '"');
+        chartOption = JSON.parse(genChartStr);
+
+        if (!chartOption || Object.keys(chartOption).length === 0) {
+          throw new Error('图表配置为空，无法渲染');
+        }
+      } catch (parseError) {
+        console.error('图表配置解析失败:', parseError);
+        const errorMsg = '图表配置解析失败，请检查数据格式后重新上传';
+        message.error(errorMsg);
+        setChartError(errorMsg);
+        setSubmitting(false);
+        return;
+      }
+
+      // 7. 处理分析结论（修复：数组转字符串，去除多余引号）
+      let genResultStr = '分析成功';
+      if (res.data.genResult) {
+        if (Array.isArray(res.data.genResult)) {
+          genResultStr = res.data.genResult.join('\n\n');
+        } else if (typeof res.data.genResult === 'string') {
+          // 修复：去除AI返回的多余引号/转义
+          genResultStr = res.data.genResult.replace(/^"/, '').replace(/"$/, '').replace(/\\"/g, '"');
+        }
+      }
+
+      // 8. 设置成功状态
+      setEchartsOption(chartOption);
+      setChartResult({
+        genResult: genResultStr,
+        chartId: res.data.chartId,
+      });
+      message.success(res.message || '分析成功');
+
+    } catch (e: any) {
+      const errorMsg = '分析失败：' + (e.message || '网络异常');
+      message.error(errorMsg);
+      setChartError(errorMsg);
     } finally {
       setSubmitting(false);
     }
   };
 
+  /**
+   * 重置表单和状态
+   */
+  const handleReset = () => {
+    form.resetFields();
+    setFileList([]);
+    setChartResult(undefined);
+    setEchartsOption(null);
+    setChartError('');
+  };
+
   return (
-    <div className={styles.container}>
-      <Helmet>
-        <title>
-          {'新建智能图表'}
-          {Settings.title && ` - ${Settings.title}`}
-        </title>
-      </Helmet>
-
-      {/* 表单卡片区域 */}
-      <div className={styles.cardContainer}>
-        <Card className={styles.formCard} bordered={true}>
-          {/* 表单头部 */}
-          <div className={styles.formHeader}>
-            <span className={styles.formTitle}>新建智能图表</span>
-            <Link to="/home">
-              <ArrowLeftOutlined /> 返回列表
-            </Link>
-          </div>
-
-          {/* ProForm表单（含文件上传） */}
-          <ProForm
-            layout="vertical"
-            onFinish={handleSubmit}
-            submitter={{
-              searchConfig: {
-                submitText: '生成图表',
-                resetText: '重置',
-                // ✅ 禁用状态同步
-                submitButtonProps: { loading: submitting },
-              },
-              render: (props, dom) => {
-                return (
-                  <Space style={{ marginTop: 24 }}>
-                    <div style={{ flex: 1 }}></div>
-                    {dom.resetButton}
-                    {dom.submitButton}
-                  </Space>
-                );
-              },
-            }}
-            initialValues={{}}
+    <div style={{ 
+      padding: '24px', 
+      minHeight: '100vh', 
+      boxSizing: 'border-box',
+      backgroundColor: '#f5f7fa',
+    }}>
+      {/* 主布局：左侧分析配置，右侧结果展示（响应式） */}
+      <div style={{ 
+        display: 'grid',
+        gridTemplateColumns: 'minmax(320px, 1fr) 2fr',
+        gap: 24,
+        height: '100%',
+        maxWidth: 1600,
+        margin: '0 auto',
+      }}>
+        {/* 左侧：分析配置 */}
+        <Card 
+          title="分析配置" 
+          style={{ 
+            borderRadius: 8,
+            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
+            height: 'fit-content',
+            position: 'sticky',
+            top: 24,
+          }}
+        >
+          <Form
+            form={form}
+            labelCol={{ span: 6 }}
+            wrapperCol={{ span: 18 }}
+            onFinish={onFinish}
+            initialValues={{ chartType: 'line' }}
           >
-            {/* 图表名称 */}
-            <ProFormText
-              name="chartName"
-              label="图表名称"
-              placeholder="请输入图表名称（如：用户增长趋势图）"
-              fieldProps={{
-                size: 'middle',
-                maxLength: 50,
-              }}
-              rules={[
-                { required: true, message: '图表名称不能为空！' },
-                { min: 2, max: 50, message: '图表名称长度需在2-50个字符之间' },
-              ]}
-            />
-
-            {/* 分析目标 */}
-            <ProFormTextArea
+            <Form.Item
               name="goal"
               label="分析目标"
-              placeholder="请输入分析目标（如：分析用户数逐日增长趋势，计算增长倍数和峰值）"
-              fieldProps={{
-                rows: 4,
-                maxLength: 200,
-              }}
-              rules={[
-                { required: true, message: '分析目标不能为空！' },
-                { min: 5, max: 200, message: '分析目标长度需在5-200个字符之间' },
-              ]}
-            />
+              rules={[{ required: true, message: '请输入分析目标' }]}
+              style={{ marginBottom: 24 }}
+            >
+              <TextArea
+                placeholder="例如：分析网站用户近7天的增长趋势，找出增长最快的时间段"
+                rows={4}
+                style={{ 
+                  resize: 'none',
+                  borderRadius: 4,
+                }}
+              />
+            </Form.Item>
 
-            {/* 图表类型 */}
-            <ProFormSelect
+            <Form.Item
+              name="name"
+              label="图表名称"
+              rules={[{ required: true, message: '请输入图表名称' }]}
+              style={{ marginBottom: 24 }}
+            >
+              <Input 
+                placeholder="例如：网站用户增长趋势图"
+                style={{ borderRadius: 4 }}
+              />
+            </Form.Item>
+
+            <Form.Item
               name="chartType"
               label="图表类型"
-              placeholder="请选择图表类型"
-              fieldProps={{
-                size: 'middle',
-              }}
-              options={CHART_TYPE_OPTIONS}
-              rules={[{ required: true, message: '请选择图表类型！' }]}
-            />
-
-            {/* 文件上传（核心补充：仅支持Excel） */}
-            <ProFormUpload
-              name="file"
-              label="数据文件"
-              valuePropName="fileList"
-              fileList={fileList}
-              onChange={handleFileChange}
-              beforeUpload={beforeUpload}
-              fieldProps={{
-                accept: '.xlsx,.xls', // ✅ 仅保留Excel格式
-                maxCount: 1, // 仅允许上传1个文件
-                showUploadList: true, // 显示文件上传列表
-                customRequest: () => {}, // 禁用自动上传（手动在提交时上传）
-              }}
-              rules={[{ 
-                required: true, 
-                message: '请上传Excel数据文件，仅支持 .xlsx / .xls 格式' 
-              }]}
+              rules={[{ required: true, message: '请选择图表类型' }]}
+              style={{ marginBottom: 24 }}
             >
-              <Button icon={<UploadOutlined />} size="middle" type="default">
-                点击上传Excel数据文件
-              </Button>
-            </ProFormUpload>
-            <div className={styles.uploadTip}>
-              支持格式：.xlsx / .xls | 最大文件大小: 2MB
-            </div>
-          </ProForm>
-        </Card>
-      </div>
+              <Select 
+                options={CHART_TYPE_OPTIONS} 
+                placeholder="请选择图表类型"
+                style={{ width: '100%', borderRadius: 4 }}
+              />
+            </Form.Item>
 
-      <Footer />
+            <Form.Item 
+              name="file" 
+              label="数据文件"
+              style={{ marginBottom: 32 }}
+            >
+              <Upload
+                fileList={fileList}
+                onChange={({ fileList: newFileList }) => setFileList(newFileList)}
+                beforeUpload={(file) => {
+                  if (!isCsvFile(file)) {
+                    message.error('仅支持CSV/XLSX/XLS格式！');
+                    return false;
+                  }
+                  return true;
+                }}
+                disabled={submitting}
+                maxCount={1}
+              >
+                <Button 
+                  icon={<UploadOutlined />} 
+                  disabled={submitting}
+                >
+                  选择文件
+                </Button>
+              </Upload>
+              <div style={{ marginTop: 12, fontSize: 12, color: '#666' }}>
+                支持格式：.csv / .xlsx / .xls | 建议文件大小不超过 10MB
+              </div>
+            </Form.Item>
+
+            <Form.Item wrapperCol={{ offset: 6 }}>
+              <Space size="middle">
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={submitting}
+                  size="large"
+                  style={{
+                    padding: '0 32px',
+                    fontSize: 16,
+                    borderRadius: 4,
+                  }}
+                >
+                  生成图表
+                </Button>
+                <Button
+                  htmlType="reset"
+                  onClick={handleReset}
+                  disabled={submitting}
+                  size="large"
+                  style={{
+                    padding: '0 32px',
+                    fontSize: 16,
+                    borderRadius: 4,
+                  }}
+                >
+                  重置
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        </Card>
+
+        {/* 右侧：结果展示 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* 上方：AI分析结论 */}
+          <Card 
+            title="AI分析结论" 
+            style={{ 
+              borderRadius: 8,
+              boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
+              minHeight: 200,
+            }}
+          >
+            <Spin spinning={submitting} tip="AI分析中...">
+              {chartError ? (
+                <div style={{ 
+                  color: '#ff4d4f', 
+                  lineHeight: 1.6, 
+                  padding: 16,
+                  fontSize: 14,
+                }}>
+                  ❌ {chartError}
+                </div>
+              ) : chartResult ? (
+                <div style={{ 
+                  lineHeight: 1.8, 
+                  whiteSpace: 'pre-wrap',
+                  padding: 16,
+                  backgroundColor: '#f6ffed',
+                  borderRadius: 6,
+                  border: '1px solid #b7eb8f',
+                  fontSize: 14,
+                }}>
+                  {chartResult.genResult}
+                </div>
+              ) : (
+                <div style={{ 
+                  color: '#999',
+                  padding: 16,
+                  textAlign: 'center',
+                  fontSize: 14,
+                }}>
+                  请上传数据并点击「生成图表」获取分析结论
+                </div>
+              )}
+            </Spin>
+          </Card>
+
+          {/* 下方：图表展示 */}
+          <Card 
+            title="可视化图表" 
+            id="chart-card"
+            style={{ 
+              borderRadius: 8,
+              boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
+              flex: 1,
+              minHeight: 450,
+            }}
+            bodyStyle={{ 
+              height: 'calc(100% - 57px)', // 减去标题栏高度
+              padding: 16,
+            }}
+          >
+            <Spin spinning={submitting} tip="图表生成中...">
+              {chartError ? (
+                <div
+                  style={{
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ff4d4f',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <p style={{ fontSize: 16, marginBottom: 8 }}>❌ 图表生成失败</p>
+                  <p style={{ fontSize: 14 }}>{chartError}</p>
+                </div>
+              ) : echartsOption ? (
+                <div style={{ height: '100%', width: '100%' }}>
+                  <ReactECharts
+                    option={echartsOption}
+                    style={{ height: '100%', width: '100%' }}
+                    opts={{ 
+                      renderer: 'canvas',
+                      
+                    }}
+                    notMerge={true} // 修复：避免配置叠加
+                    onError={(err) => {
+                      console.error('ECharts渲染失败:', err);
+                      setChartError('图表渲染异常，请检查数据格式');
+                    }}
+                  />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#999',
+                    backgroundColor: '#fafafa',
+                    borderRadius: 4,
+                    fontSize: 14,
+                  }}
+                >
+                  暂无图表数据，请先生成
+                </div>
+              )}
+            </Spin>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 };
