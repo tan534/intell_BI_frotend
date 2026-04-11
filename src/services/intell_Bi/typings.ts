@@ -78,6 +78,7 @@ interface BaseResponseGenChart_ {
   };
 
   type Chart = {
+    chartName?: string;
     chartData?: string;
     chartType?: string;
     createTime?: string;
@@ -89,6 +90,11 @@ interface BaseResponseGenChart_ {
     updateTime?: string;
     userId?: number;
   };
+
+// 图表查询请求（查详情用）
+interface ChartGetRequest {
+  id: number;
+}
 
   type ChartEditRequest = {
     chartData?: string;
@@ -110,6 +116,7 @@ interface BaseResponseGenChart_ {
   };
 
   type ChartUpdateRequest = {
+    chartName?: string;
     chartData?: string;
     chartType?: string;
     createTime?: string;

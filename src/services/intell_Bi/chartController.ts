@@ -1,8 +1,4 @@
-// @ts-ignore
-/* eslint-disable */
 import { request } from "@umijs/max";
-
-
 
 /** 删除图表 POST /api/chart/delete */
 export async function deleteChartUsingPost(
@@ -19,33 +15,32 @@ export async function deleteChartUsingPost(
   });
 }
 
-/** editChart POST /api/chart/edit */
-export async function editChartUsingPost(
-  body: API.ChartEditRequest,
+/**
+ * 更新图表
+ */
+export async function updateChartUsingPost(body: API.ChartUpdateRequest) {
+  return request('/api/chart/update', {
+    method: 'POST',
+    data: body,
+  });
+}
+
+export async function getChartByIdUsingGET(
+  params: API.ChartGetRequest,
   options?: { [key: string]: any }
 ) {
-  return request<API.BaseResponseBoolean_>("/api/chart/edit", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    data: body,
+  return request('/api/chart/get', {
+    method: 'GET',
+    params,
     ...(options || {}),
   });
 }
 
-/** 根据 ID 获取图表 GET /api/chart/get/${param0} */
 export async function getChartByIdUsingGet(
-  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.getChartByIdUsingGETParams,
+  params: API.ChartGetRequest,
   options?: { [key: string]: any }
 ) {
-  const { id: param0, ...queryParams } = params;
-  return request<API.BaseResponseChart_>(`/api/chart/get/${param0}`, {
-    method: "GET",
-    params: { ...queryParams },
-    ...(options || {}),
-  });
+  return getChartByIdUsingGET(params, options);
 }
 
 /** listChartByPage POST /api/chart/list/page */
@@ -78,20 +73,6 @@ export async function listMyChartByPageUsingPost(
   });
 }
 
-/** 更新图表 POST /api/chart/update */
-export async function updateChartUsingPost(
-  body: API.ChartUpdateRequest,
-  options?: { [key: string]: any }
-) {
-  return request<API.BaseResponseBoolean_>("/api/chart/update", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    data: body,
-    ...(options || {}),
-  });
-}
 
 /** 生成图表 POST /api/chart/gen */
 export async function genChartUsingPost(

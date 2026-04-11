@@ -1,12 +1,13 @@
-import { genChartUsingPost } from '@/services/intell_Bi/chartController';
+import { genChartUsingPost, updateChartUsingPost, getChartByIdUsingGET } from '@/services/intell_Bi/chartController';
 import { UploadOutlined } from '@ant-design/icons';
 import { Button, Card, Form, Input, message, Select, Space, Spin, Upload } from 'antd';
 import TextArea from 'antd/es/input/TextArea';
 import React, { useState, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
 import type { UploadFile } from 'antd/es/upload/interface';
+import { useParams } from 'react-router-dom';
 
-// 图表类型映射（和后端保持一致，value对应ECharts type）
+// 图表类型映射
 const CHART_TYPE_OPTIONS = [
   { value: 'line', label: '折线图' },
   { value: 'bar', label: '柱状图' },
@@ -14,6 +15,13 @@ const CHART_TYPE_OPTIONS = [
   { value: 'pie', label: '饼图' },
   { value: 'radar', label: '雷达图' },
 ];
+const CHART_TYPE_LABELS: Record<string, string> = {
+  line: '折线图',
+  bar: '柱状图',
+  stack: '堆叠图',
+  pie: '饼图',
+  radar: '雷达图',
+};
 
 // 文件格式校验
 const isCsvFile = (file: File) => {
@@ -21,165 +29,251 @@ const isCsvFile = (file: File) => {
   return fileName.endsWith('.csv') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
 };
 
+const normalizeEchartsOption = (option: any, chartName?: string) => {
+  if (!option || typeof option !== 'object') {
+    return option;
+  }
+  const normalized = { ...option };
+  normalized.textStyle = {
+    fontFamily: 'Arial, "PingFang SC", sans-serif',
+    ...(option.textStyle || {}),
+  };
+  if (!normalized.tooltip) {
+    normalized.tooltip = {
+      trigger: option.series?.[0]?.type === 'pie' ? 'item' : 'axis',
+      axisPointer: { type: 'shadow' },
+      textStyle: { fontSize: 12 },
+    };
+  }
+  if (!normalized.grid && ['line', 'bar', 'stack'].includes(option.series?.[0]?.type)) {
+    normalized.grid = { left: '12%', right: '8%', top: '20%', bottom: '12%', containLabel: true };
+  }
+  if (!normalized.legend && Array.isArray(option.series) && option.series.length > 1) {
+    normalized.legend = { top: 42, left: 'center', textStyle: { fontSize: 12 } };
+  }
+  if (!normalized.title && chartName) {
+    normalized.title = {
+      text: chartName,
+      left: 'center',
+      top: 10,
+      textStyle: { fontSize: 18, fontWeight: 600 },
+    };
+  }
+  if (!normalized.toolbox) {
+    normalized.toolbox = {
+      feature: { saveAsImage: { title: '保存为图片' } },
+      right: 10,
+    };
+  }
+  if (normalized.series && Array.isArray(normalized.series)) {
+    normalized.series = normalized.series.map((seriesItem: any) => ({
+      ...seriesItem,
+      label: seriesItem.label || { show: false },
+    }));
+  }
+  return normalized;
+};
+
 const AddChart: React.FC = () => {
   const [form] = Form.useForm();
+  const { id } = useParams(); // 从路由获取图表ID
+  const isEdit = !!id; // 是否是编辑模式
+
   const [chartResult, setChartResult] = useState<{
     genResult: string;
     chartId?: number;
   }>();
-  const [echartsOption, setEchartsOption] = useState<any>(null); // 初始null，避免空对象渲染
+  const [echartsOption, setEchartsOption] = useState<any>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [chartError, setChartError] = useState<string>('');
+  const [chartMeta, setChartMeta] = useState<{ name?: string; type?: string }>();
 
-  // 修复：图表容器自适应高度
-  const [chartHeight, setChartHeight] = useState<number>(400);
+  // ==============================================
+  // 🔥 核心：编辑模式 → 自动回填旧数据
+  // ==============================================
   useEffect(() => {
-    const updateHeight = () => {
-      const card = document.getElementById('chart-card');
-      if (card) {
-        setChartHeight(card.clientHeight - 60); // 减去标题栏高度
+    if (!isEdit) return;
+
+    const loadOldChart = async () => {
+      try {
+        const res = await getChartByIdUsingGET({ id: Number(id) });
+        if (res.code !== 0 || !res.data) {
+          message.error('加载图表失败');
+          return;
+        }
+        const chart = res.data;
+
+        // 回填表单
+        form.setFieldsValue({
+          name: chart.chartName,
+          goal: chart.goal,
+          chartType: chart.chartType,
+        });
+
+        // 回填图表
+        if (chart.genChart) {
+          try {
+            const opt = JSON.parse(chart.genChart);
+            setEchartsOption(normalizeEchartsOption(opt, chart.chartName));
+          } catch (e) { }
+        }
+
+        // 回填结论
+        setChartResult({
+          genResult: chart.genResult || '',
+          chartId: chart.id,
+        });
+
+        setChartMeta({
+          name: chart.chartName,
+          type: chart.chartType,
+        });
+
+      } catch (err) {
+        message.error('加载数据失败');
       }
     };
-    updateHeight();
-    window.addEventListener('resize', updateHeight);
-    return () => window.removeEventListener('resize', updateHeight);
-  }, []);
 
-  /**
-   * 提交分析请求
-   */
+    loadOldChart();
+  }, [id, form]);
+
+  // ==============================================
+  // 提交：区分 新增 / 编辑
+  // ==============================================
   const onFinish = async (values: any) => {
-    // 1. 重置状态
     setSubmitting(true);
     setChartResult(undefined);
     setEchartsOption(null);
     setChartError('');
 
-    // 2. 校验文件
-    if (fileList.length === 0) {
-      message.error('请先上传CSV/Excel文件');
-      setSubmitting(false);
-      return;
-    }
-    const file = fileList[0].originFileObj;
-    if (!file || !isCsvFile(file)) {
-      message.error('仅支持上传CSV/XLSX/XLS文件');
-      setSubmitting(false);
-      return;
-    }
-
     try {
-      // 3. 构建FormData
+      // ------------------------------
+      // 编辑模式：更新（不用传文件）
+      // ------------------------------
+      if (isEdit) {
+        const res = await updateChartUsingPost({
+          id: Number(id),
+          goal: values.goal,
+          chartName: values.name,
+          chartType: values.chartType,
+        });
+
+        if (res.code !== 0 || !res.data) {
+          message.error(res.message || '更新失败');
+          setSubmitting(false);
+          return;
+        }
+
+        const newChart = res.data;
+        let newOption = null;
+        try {
+          newOption = JSON.parse(newChart.genChart || '');
+        } catch (e) { }
+
+        setEchartsOption(normalizeEchartsOption(newOption, values.name));
+        setChartResult({
+          genResult: newChart.genResult || '',
+          chartId: newChart.id,
+        });
+        setChartMeta({ name: values.name, type: values.chartType });
+        message.success('更新成功！');
+        return;
+      }
+
+      // ------------------------------
+      // 新增模式（原来的逻辑）
+      // ------------------------------
+      if (fileList.length === 0) {
+        message.error('请先上传文件');
+        setSubmitting(false);
+        return;
+      }
+      const file = fileList[0].originFileObj;
+      if (!file || !isCsvFile(file)) {
+        message.error('文件格式错误');
+        setSubmitting(false);
+        return;
+      }
+
       const formData = new FormData();
       formData.append('goal', values.goal);
       formData.append('chartName', values.name);
       formData.append('chartType', values.chartType);
       formData.append('file', file);
 
-      // 4. 调用后端接口
       const res: API.BaseResponseGenChart_ = await genChartUsingPost(formData);
 
-      // 5. 校验接口响应
-      if (res.code !== 0) {
-        const errorMsg = res.message || '分析失败，请检查数据后重试';
-        message.error(errorMsg);
-        setChartError(errorMsg);
+      if (res.code !== 0 || !res.data) {
+        message.error(res.message || '生成失败');
         setSubmitting(false);
         return;
       }
 
-      if (!res.data) {
-        const errorMsg = '未获取到分析结果，请重新上传数据';
-        message.error(errorMsg);
-        setChartError(errorMsg);
-        setSubmitting(false);
-        return;
-      }
-
-      // 6. 解析ECharts配置（修复：处理AI返回的JS格式/转义问题）
-      let chartOption: any = null;
+      let chartOption = null;
       try {
         let genChartStr = res.data.genChartStr || '';
-        // 修复：处理AI返回的option = {}格式
-        if (genChartStr.startsWith('option = ')) {
-          genChartStr = genChartStr.replace('option = ', '').replace(';', '');
-        }
-        // 修复：单引号转双引号，处理JSON格式
-        genChartStr = genChartStr.replace(/'/g, '"');
+        genChartStr = genChartStr.replace(/option = /, '').replace(/;/g, '').replace(/'/g, '"');
         chartOption = JSON.parse(genChartStr);
-
-        if (!chartOption || Object.keys(chartOption).length === 0) {
-          throw new Error('图表配置为空，无法渲染');
-        }
-      } catch (parseError) {
-        console.error('图表配置解析失败:', parseError);
-        const errorMsg = '图表配置解析失败，请检查数据格式后重新上传';
-        message.error(errorMsg);
-        setChartError(errorMsg);
+      } catch (e) {
+        message.error('图表解析失败');
         setSubmitting(false);
         return;
       }
 
-      // 7. 处理分析结论（修复：数组转字符串，去除多余引号）
       let genResultStr = '分析成功';
       if (res.data.genResult) {
         if (Array.isArray(res.data.genResult)) {
           genResultStr = res.data.genResult.join('\n\n');
-        } else if (typeof res.data.genResult === 'string') {
-          // 修复：去除AI返回的多余引号/转义
-          genResultStr = res.data.genResult.replace(/^"/, '').replace(/"$/, '').replace(/\\"/g, '"');
+        } else {
+          genResultStr = String(res.data.genResult).replace(/^"|"$/g, '');
         }
       }
 
-      // 8. 设置成功状态
-      setEchartsOption(chartOption);
+      setEchartsOption(normalizeEchartsOption(chartOption, values.name));
       setChartResult({
         genResult: genResultStr,
         chartId: res.data.chartId,
       });
-      message.success(res.message || '分析成功');
+      setChartMeta({ name: values.name, type: values.chartType });
+      message.success('生成成功！');
 
     } catch (e: any) {
-      const errorMsg = '分析失败：' + (e.message || '网络异常');
-      message.error(errorMsg);
-      setChartError(errorMsg);
+      message.error('操作失败：' + e.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  /**
-   * 重置表单和状态
-   */
   const handleReset = () => {
     form.resetFields();
     setFileList([]);
     setChartResult(undefined);
     setEchartsOption(null);
     setChartError('');
+    setChartMeta(undefined);
   };
 
   return (
-    <div style={{ 
-      padding: '24px', 
-      minHeight: '100vh', 
+    <div style={{
+      padding: '24px',
+      minHeight: '100vh',
       boxSizing: 'border-box',
       backgroundColor: '#f5f7fa',
     }}>
-      {/* 主布局：左侧分析配置，右侧结果展示（响应式） */}
-      <div style={{ 
-        display: 'grid',
-        gridTemplateColumns: 'minmax(320px, 1fr) 2fr',
+      <div style={{
+        display: 'flex',
         gap: 24,
-        height: '100%',
-        maxWidth: 1600,
+        alignItems: 'stretch',
+        maxWidth: 1800,
         margin: '0 auto',
       }}>
-        {/* 左侧：分析配置 */}
-        <Card 
-          title="分析配置" 
-          style={{ 
+        {/* 左侧配置 */}
+        <Card
+          title="分析配置"
+          style={{
+            width: 380,
+            flexShrink: 0,
             borderRadius: 8,
             boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
             height: 'fit-content',
@@ -198,99 +292,55 @@ const AddChart: React.FC = () => {
               name="goal"
               label="分析目标"
               rules={[{ required: true, message: '请输入分析目标' }]}
-              style={{ marginBottom: 24 }}
             >
-              <TextArea
-                placeholder="例如：分析网站用户近7天的增长趋势，找出增长最快的时间段"
-                rows={4}
-                style={{ 
-                  resize: 'none',
-                  borderRadius: 4,
-                }}
-              />
+              <TextArea rows={4} placeholder="例如：分析用户增长趋势" style={{ borderRadius: 4 }} />
             </Form.Item>
 
             <Form.Item
               name="name"
               label="图表名称"
               rules={[{ required: true, message: '请输入图表名称' }]}
-              style={{ marginBottom: 24 }}
             >
-              <Input 
-                placeholder="例如：网站用户增长趋势图"
-                style={{ borderRadius: 4 }}
-              />
+              <Input placeholder="例如：用户增长图" style={{ borderRadius: 4 }} />
             </Form.Item>
 
             <Form.Item
               name="chartType"
               label="图表类型"
               rules={[{ required: true, message: '请选择图表类型' }]}
-              style={{ marginBottom: 24 }}
             >
-              <Select 
-                options={CHART_TYPE_OPTIONS} 
-                placeholder="请选择图表类型"
-                style={{ width: '100%', borderRadius: 4 }}
-              />
+              <Select options={CHART_TYPE_OPTIONS} style={{ borderRadius: 4 }} />
             </Form.Item>
 
-            <Form.Item 
-              name="file" 
-              label="数据文件"
-              style={{ marginBottom: 32 }}
-            >
-              <Upload
-                fileList={fileList}
-                onChange={({ fileList: newFileList }) => setFileList(newFileList)}
-                beforeUpload={(file) => {
-                  if (!isCsvFile(file)) {
-                    message.error('仅支持CSV/XLSX/XLS格式！');
-                    return false;
-                  }
-                  return true;
-                }}
-                disabled={submitting}
-                maxCount={1}
-              >
-                <Button 
-                  icon={<UploadOutlined />} 
-                  disabled={submitting}
+            {/* 编辑模式隐藏上传文件 */}
+            {!isEdit && (
+              <Form.Item name="file" label="数据文件">
+                <Upload
+                  fileList={fileList}
+                  onChange={({ fileList: newFileList }) => setFileList(newFileList)}
+                  beforeUpload={(file) => {
+                    if (!isCsvFile(file)) {
+                      message.error('仅支持CSV/Excel');
+                      return false;
+                    }
+                    return true;
+                  }}
+                  maxCount={1}
                 >
-                  选择文件
-                </Button>
-              </Upload>
-              <div style={{ marginTop: 12, fontSize: 12, color: '#666' }}>
-                支持格式：.csv / .xlsx / .xls | 建议文件大小不超过 10MB
-              </div>
-            </Form.Item>
+                  <Button icon={<UploadOutlined />}>选择文件</Button>
+                </Upload>
+                <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
+                  支持 .csv / .xlsx / .xls
+                </div>
+              </Form.Item>
+            )}
 
             <Form.Item wrapperCol={{ offset: 6 }}>
-              <Space size="middle">
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  loading={submitting}
-                  size="large"
-                  style={{
-                    padding: '0 32px',
-                    fontSize: 16,
-                    borderRadius: 4,
-                  }}
-                >
-                  生成图表
+              <Space>
+                <Button type="primary" htmlType="submit" loading={submitting} size="large">
+                  {isEdit ? '重新生成' : '生成图表'}
                 </Button>
-                <Button
-                  htmlType="reset"
-                  onClick={handleReset}
-                  disabled={submitting}
-                  size="large"
-                  style={{
-                    padding: '0 32px',
-                    fontSize: 16,
-                    borderRadius: 4,
-                  }}
-                >
+                <Button onClick={handleReset} disabled={submitting} size="large">
                   重置
                 </Button>
               </Space>
@@ -298,112 +348,60 @@ const AddChart: React.FC = () => {
           </Form>
         </Card>
 
-        {/* 右侧：结果展示 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* 上方：AI分析结论 */}
-          <Card 
-            title="AI分析结论" 
-            style={{ 
-              borderRadius: 8,
-              boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
-              minHeight: 200,
-            }}
-          >
+        {/* 右侧展示 */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <Card title="AI分析结论" style={{ borderRadius: 8 }} bodyStyle={{ padding: 16 }}>
             <Spin spinning={submitting} tip="AI分析中...">
               {chartError ? (
-                <div style={{ 
-                  color: '#ff4d4f', 
-                  lineHeight: 1.6, 
-                  padding: 16,
-                  fontSize: 14,
-                }}>
-                  ❌ {chartError}
-                </div>
+                <div style={{ color: '#ff4d4f' }}>❌ {chartError}</div>
               ) : chartResult ? (
-                <div style={{ 
-                  lineHeight: 1.8, 
+                <div style={{
+                  lineHeight: 1.8,
                   whiteSpace: 'pre-wrap',
                   padding: 16,
                   backgroundColor: '#f6ffed',
                   borderRadius: 6,
                   border: '1px solid #b7eb8f',
-                  fontSize: 14,
                 }}>
                   {chartResult.genResult}
                 </div>
               ) : (
-                <div style={{ 
-                  color: '#999',
-                  padding: 16,
-                  textAlign: 'center',
-                  fontSize: 14,
-                }}>
-                  请上传数据并点击「生成图表」获取分析结论
+                <div style={{ color: '#999', textAlign: 'center', padding: '20px 0' }}>
+                  请上传数据并生成图表
                 </div>
               )}
             </Spin>
           </Card>
 
-          {/* 下方：图表展示 */}
-          <Card 
-            title="可视化图表" 
-            id="chart-card"
-            style={{ 
-              borderRadius: 8,
-              boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
-              flex: 1,
-              minHeight: 450,
-            }}
-            bodyStyle={{ 
-              height: 'calc(100% - 57px)', // 减去标题栏高度
-              padding: 16,
-            }}
+          <Card
+            title="可视化图表"
+            style={{ flex: 1, minHeight: 500, borderRadius: 8 }}
+            bodyStyle={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column' }}
           >
-            <Spin spinning={submitting} tip="图表生成中...">
+            <Spin spinning={submitting} tip="图表生成中..." style={{ flex: 1 }}>
+              {chartMeta && (
+                <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>图表名称：{chartMeta.name}</span>
+                  <span>图表类型：{CHART_TYPE_LABELS[chartMeta.type || '']}</span>
+                </div>
+              )}
+
               {chartError ? (
-                <div
-                  style={{
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#ff4d4f',
-                    flexDirection: 'column',
-                  }}
-                >
-                  <p style={{ fontSize: 16, marginBottom: 8 }}>❌ 图表生成失败</p>
-                  <p style={{ fontSize: 14 }}>{chartError}</p>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff4d4f' }}>
+                  ❌ 图表生成失败
                 </div>
               ) : echartsOption ? (
-                <div style={{ height: '100%', width: '100%' }}>
+                <div style={{ flex: 1, minHeight: 400 }}>
                   <ReactECharts
+                    key={isEdit ? id : undefined}
                     option={echartsOption}
                     style={{ height: '100%', width: '100%' }}
-                    opts={{ 
-                      renderer: 'canvas',
-                      
-                    }}
-                    notMerge={true} // 修复：避免配置叠加
-                    onError={(err) => {
-                      console.error('ECharts渲染失败:', err);
-                      setChartError('图表渲染异常，请检查数据格式');
-                    }}
+                    opts={{ renderer: 'canvas' }}
                   />
                 </div>
               ) : (
-                <div
-                  style={{
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#999',
-                    backgroundColor: '#fafafa',
-                    borderRadius: 4,
-                    fontSize: 14,
-                  }}
-                >
-                  暂无图表数据，请先生成
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
+                  暂无图表数据
                 </div>
               )}
             </Spin>
