@@ -90,7 +90,7 @@ const AddChart: React.FC = () => {
   const [chartMeta, setChartMeta] = useState<{ name?: string; type?: string }>();
 
   // ==============================================
-  // 🔥 核心：编辑模式 → 自动回填旧数据
+  // 核心：编辑模式 → 自动回填旧数据
   // ==============================================
   useEffect(() => {
     if (!isEdit) return;

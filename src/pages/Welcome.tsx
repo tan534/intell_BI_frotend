@@ -1,84 +1,51 @@
 import { PageContainer } from '@ant-design/pro-components';
 import { useModel } from '@umijs/max';
 import { Card, theme } from 'antd';
+import { BarChartOutlined, CloudOutlined, ApiOutlined } from '@ant-design/icons';
 import React from 'react';
 
 /**
- * 每个单独的卡片，为了复用样式抽成了组件
- * @param param0
- * @returns
+ * 功能卡片
  */
-const InfoCard: React.FC<{
+const FeatureCard: React.FC<{
   title: string;
-  index: number;
+  icon: React.ReactNode;
   desc: string;
-  href: string;
-}> = ({ title, href, index, desc }) => {
-  const { useToken } = theme;
-
-  const { token } = useToken();
+}> = ({ title, icon, desc }) => {
+  const { token } = theme.useToken();
 
   return (
     <div
       style={{
-        backgroundColor: token.colorBgContainer,
+        background: token.colorBgContainer,
         boxShadow: token.boxShadow,
-        borderRadius: '8px',
-        fontSize: '14px',
-        color: token.colorTextSecondary,
-        lineHeight: '22px',
-        padding: '16px 19px',
-        minWidth: '220px',
+        borderRadius: '12px',
+        padding: '24px',
         flex: 1,
+        minWidth: '260px',
+        transition: 'all 0.3s',
       }}
     >
       <div
         style={{
+          width: '50px',
+          height: '50px',
+          borderRadius: '8px',
+          background: token.colorPrimaryBg,
           display: 'flex',
-          gap: '4px',
           alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: '16px',
         }}
       >
-        <div
-          style={{
-            width: 48,
-            height: 48,
-            lineHeight: '22px',
-            backgroundSize: '100%',
-            textAlign: 'center',
-            padding: '8px 16px 16px 12px',
-            color: '#FFF',
-            fontWeight: 'bold',
-            backgroundImage:
-              "url('https://gw.alipayobjects.com/zos/bmw-prod/daaf8d50-8e6d-4251-905d-676a24ddfa12.svg')",
-          }}
-        >
-          {index}
-        </div>
-        <div
-          style={{
-            fontSize: '16px',
-            color: token.colorText,
-            paddingBottom: 8,
-          }}
-        >
-          {title}
-        </div>
+        <div style={{ fontSize: '24px', color: token.colorPrimary }}>{icon}</div>
       </div>
-      <div
-        style={{
-          fontSize: '14px',
-          color: token.colorTextSecondary,
-          textAlign: 'justify',
-          lineHeight: '22px',
-          marginBottom: 8,
-        }}
-      >
+      <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '12px' }}>
+        {title}
+      </div>
+      <div style={{ fontSize: '14px', color: token.colorTextSecondary, lineHeight: '22px' }}>
         {desc}
       </div>
-      <a href={href} target="_blank" rel="noreferrer">
-        了解更多 {'>'}
-      </a>
     </div>
   );
 };
@@ -86,75 +53,74 @@ const InfoCard: React.FC<{
 const Welcome: React.FC = () => {
   const { token } = theme.useToken();
   const { initialState } = useModel('@@initialState');
+
   return (
-    <PageContainer>
+    <PageContainer header={{ title: null }}>
       <Card
         style={{
-          borderRadius: 8,
+          borderRadius: 12,
+          overflow: 'hidden',
         }}
-        styles={{
-          body: {
-            backgroundImage:
-              initialState?.settings?.navTheme === 'realDark'
-                ? 'background-image: linear-gradient(75deg, #1A1B1F 0%, #191C1F 100%)'
-                : 'background-image: linear-gradient(75deg, #FBFDFF 0%, #F5F7FF 100%)',
-          },
-        }}
+        bodyStyle={{ padding: '32px 40px' }}
       >
         <div
           style={{
-            backgroundPosition: '100% -30%',
+            backgroundPosition: '100% 50%',
             backgroundRepeat: 'no-repeat',
-            backgroundSize: '274px auto',
+            backgroundSize: '380px auto',
             backgroundImage:
-              "url('https://gw.alipayobjects.com/mdn/rms_a9745b/afts/img/A*BuFmQqsB2iAAAAAAAAAAAAAAARQnAQ')",
+              "url('https://gw.alipayobjects.com/zos/antfincdn/Ps96KdVgF/bi-welcome.svg')",
           }}
         >
+          {/* 主标题 */}
           <div
             style={{
-              fontSize: '20px',
+              fontSize: '28px',
+              fontWeight: 'bold',
               color: token.colorTextHeading,
+              marginBottom: '12px',
             }}
           >
-            欢迎使用 智能 BI
+            欢迎使用 智能 BI 数据分析平台
           </div>
+
+          {/* 副标题 */}
           <p
             style={{
-              fontSize: '14px',
+              fontSize: '15px',
               color: token.colorTextSecondary,
-              lineHeight: '22px',
-              marginTop: 16,
-              marginBottom: 32,
-              width: '65%',
+              lineHeight: '26px',
+              marginBottom: '32px',
+              maxWidth: '60%',
             }}
           >
-            智能 BI 是一个整合了 umi, 智能 BI 和 ProComponents
-            的脚手架方案。致力于在设计规范和基础组件的基础上，继续向上构建，提炼出典型模板/业务组件/配套设计资源，进一步提升企业级中后台产品设计研发过程中的『用户』和『设计者』的体验。
+            这是一个无需复杂编程,一键上传数据文件,AI帮你自动分析并生成专业可视化图表的工具。
+            旨在为你快速总结数据规律，辅助智能决策，让数据分析变得简单又高效。
           </p>
+
+          {/* 功能卡片 */}
           <div
             style={{
               display: 'flex',
               flexWrap: 'wrap',
-              gap: 16,
+              gap: '20px',
+              marginTop: '20px',
             }}
           >
-            <InfoCard
-              index={1}
-              href="https://umijs.org/docs/introduce/introduce"
-              title="了解 umi"
-              desc="umi 是一个可扩展的企业级前端应用框架,umi 以路由为基础的，同时支持配置式路由和约定式路由，保证路由的功能完备，并以此进行功能扩展。"
+            <FeatureCard
+              icon={<BarChartOutlined />}
+              title="AI 自动分析"
+              desc="基于人工智能自动解析数据，快速生成分析结论，无需手动编写复杂逻辑。"
             />
-            <InfoCard
-              index={2}
-              title="了解 智能 BI"
-              href="https://ant.design"
-              desc="antd 是基于 智能 BI 设计体系的 React UI 组件库，主要用于研发企业级中后台产品。"
+            <FeatureCard
+              icon={<CloudOutlined />}
+              title="一键生成图表"
+              desc="支持折线图、柱状图、饼图、雷达图等多种图表，自动适配最优展示方式。"
             />
-            <InfoCard
-              index={3}
-              title="了解 Pro Components"
-              href="https://procomponents.ant.design"
-              desc="ProComponents 是一个基于 智能 BI 做了更高抽象的模板组件，以 一个组件就是一个页面为开发理念，为中后台开发带来更好的体验。"
+            <FeatureCard
+              icon={<ApiOutlined />}
+              title="数据可视化管理"
+              desc="统一管理所有图表，支持编辑、更新、删除，随时随地查看分析结果。"
             />
           </div>
         </div>

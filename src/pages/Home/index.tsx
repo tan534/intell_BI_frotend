@@ -4,25 +4,28 @@ import {
   Button, 
   Empty, 
   message, 
-  Spin, 
   Card, 
   Row, 
   Col, 
-  Space, 
   Tag, 
   Typography,
   Popconfirm,
-  Pagination,
-  Skeleton
+  Skeleton,
+  Modal,
+  Form,
+  Input,
+  Select,
+  Space
 } from 'antd';
 import { Helmet, history, useModel } from '@umijs/max';
 import { createStyles } from 'antd-style';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ReactECharts from 'echarts-for-react';
 import Settings from '../../../config/defaultSettings';
 import {
   listMyChartByPageUsingPost,
   deleteChartUsingPost,
+  updateChartUsingPost,
 } from '@/services/intell_Bi/chartController';
 
 const { Paragraph, Text } = Typography;
@@ -36,6 +39,15 @@ const CHART_TYPE_MAP: Record<string, { text: string; color: string }> = {
   radar: { text: '雷达图', color: 'cyan' },
   stack: { text: '堆叠图', color: 'geekblue' },
 };
+
+// 图表类型选项
+const CHART_TYPE_OPTIONS = [
+  { value: 'line', label: '折线图' },
+  { value: 'bar', label: '柱状图' },
+  { value: 'stack', label: '堆叠图' },
+  { value: 'pie', label: '饼图' },
+  { value: 'radar', label: '雷达图' },
+];
 
 const useStyles = createStyles(({ token }) => {
   return {
@@ -176,8 +188,14 @@ const Home: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize] = useState<number>(6); // 每页6条，一行2条就是3行
 
+  // 编辑弹窗状态
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [currentEditChart, setCurrentEditChart] = useState<API.Chart | null>(null);
+  const [editForm] = Form.useForm();
+  const [editLoading, setEditLoading] = useState(false);
+
   // 获取图表列表
-  const fetchChartList = async (page: number = 1) => {
+  const fetchChartList = useCallback(async (page: number = 1) => {
     try {
       setLoading(true);
       const res = await listMyChartByPageUsingPost({
@@ -197,15 +215,15 @@ const Home: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pageSize]);
 
   // 初始加载图表列表
   useEffect(() => {
     fetchChartList(1);
-  }, []);
+  }, [fetchChartList]);
 
   // 删除图表
-  const handleDelete = async (id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
     try {
       const res = await deleteChartUsingPost({ id });
       if (res.code === 0) {
@@ -223,20 +241,54 @@ const Home: React.FC = () => {
       console.error('删除图表异常：', error);
       message.error('删除图表失败，服务器异常');
     }
-  };
+  }, [chartList.length, currentPage, fetchChartList]);
 
-  // 编辑图表
-  const handleEdit = (id: number) => {
-    history.push(`/add?id=${id}`);
-  };
+  // 打开编辑弹窗
+  const handleOpenEditModal = useCallback((chart: API.Chart) => {
+    setCurrentEditChart(chart);
+    setEditModalVisible(true);
+    // 回填表单
+    editForm.setFieldsValue({
+      chartName: chart.chartName,
+      goal: chart.goal,
+      chartType: chart.chartType,
+    });
+  }, [editForm]);
+
+  // 提交编辑（更新）
+  const handleEditSubmit = useCallback(async (values: any) => {
+    if (!currentEditChart) return;
+    setEditLoading(true);
+    try {
+      const res = await updateChartUsingPost({
+        id: currentEditChart.id!,
+        goal: values.goal,
+        chartName: values.chartName,
+        chartType: values.chartType,
+      });
+
+      if (res.code === 0) {
+        message.success('修改成功！');
+        setEditModalVisible(false);
+        fetchChartList(currentPage); // 刷新当前页
+      } else {
+        message.error(res.message || '修改失败');
+      }
+    } catch (e) {
+      console.error('修改异常:', e);
+      message.error('修改异常');
+    } finally {
+      setEditLoading(false);
+    }
+  }, [currentEditChart, fetchChartList, currentPage]);
 
   // 新建图表
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     history.push('/add');
-  };
+  }, []);
 
   // 解析并规范化图表配置
-  const parseChartOption = (chartData: string) => {
+  const parseChartOption = useCallback((chartData: string) => {
     try {
       if (!chartData) return null;
       let optionStr = chartData;
@@ -249,12 +301,15 @@ const Home: React.FC = () => {
       console.error('解析图表配置失败:', error);
       return null;
     }
-  };
+  }, []);
 
   // 渲染图表卡片
-  const renderChartCard = (chart: API.Chart) => {
+  const renderChartCard = useCallback((chart: API.Chart) => {
     const chartOption = parseChartOption(chart.genChart || '');
-    const chartTypeInfo = CHART_TYPE_MAP[chart.chartType || ''] || { text: chart.chartType, color: 'default' };
+    const chartTypeInfo = CHART_TYPE_MAP[chart.chartType || ''] || { 
+      text: chart.chartType || '未知类型', 
+      color: 'default' 
+    };
 
     return (
       <Col xs={24} sm={24} md={12} lg={12} xl={12} key={chart.id}>
@@ -320,12 +375,11 @@ const Home: React.FC = () => {
               创建时间：{chart.createTime ? new Date(chart.createTime).toLocaleString() : '未知'}
             </Text>
             <div className={styles.actions}>
-
               <Button
                 type="text"
                 size="small"
                 icon={<EditOutlined />}
-                onClick={() => handleEdit(chart.id!)}
+                onClick={() => handleOpenEditModal(chart)}
               >
                 编辑
               </Button>
@@ -350,13 +404,13 @@ const Home: React.FC = () => {
         </Card>
       </Col>
     );
-  };
+  }, [parseChartOption, styles, handleOpenEditModal, handleDelete]);
 
   // 渲染骨架屏
-  const renderSkeleton = () => {
+  const renderSkeleton = useCallback(() => {
     return (
       <Row gutter={[24, 24]} className={styles.chartGrid}>
-        {[1, 2, 3, 4].map((item) => (
+        {[1, 2, 3, 4, 5, 6].map((item) => (
           <Col xs={24} sm={24} md={12} lg={12} xl={12} key={item}>
             <Card style={{ height: 500 }}>
               <Skeleton active paragraph={{ rows: 8 }} />
@@ -365,7 +419,7 @@ const Home: React.FC = () => {
         ))}
       </Row>
     );
-  };
+  }, [styles.chartGrid]);
 
   return (
     <div className={styles.container}>
@@ -397,7 +451,6 @@ const Home: React.FC = () => {
           <Row gutter={[24, 24]} className={styles.chartGrid}>
             {chartList.map(chart => renderChartCard(chart))}
           </Row>
-          
         </>
       ) : (
         <div className={styles.emptyContainer}>
@@ -420,6 +473,71 @@ const Home: React.FC = () => {
           </Empty>
         </div>
       )}
+
+      {/* 编辑弹窗 */}
+      <Modal
+        title="编辑图表"
+        open={editModalVisible}
+        onCancel={() => setEditModalVisible(false)}
+        footer={null}
+        width={550}
+        destroyOnClose
+        maskClosable={false}
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={handleEditSubmit}
+          initialValues={{ chartType: 'line' }}
+        >
+          <Form.Item
+            name="chartName"
+            label="图表名称"
+            rules={[
+              { required: true, message: '请输入图表名称' },
+              { max: 50, message: '图表名称不能超过50个字符' }
+            ]}
+          >
+            <Input placeholder="请输入图表名称" maxLength={50} showCount />
+          </Form.Item>
+
+          <Form.Item
+            name="goal"
+            label="分析目标"
+            rules={[
+              { required: true, message: '请输入分析目标' },
+              { max: 200, message: '分析目标不能超过200个字符' }
+            ]}
+          >
+            <Input.TextArea 
+              rows={4} 
+              placeholder="请输入分析目标" 
+              maxLength={200} 
+              showCount 
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="chartType"
+            label="图表类型"
+            rules={[{ required: true, message: '请选择图表类型' }]}
+          >
+            <Select 
+              options={CHART_TYPE_OPTIONS} 
+              placeholder="请选择图表类型"
+            />
+          </Form.Item>
+
+          <Form.Item style={{ textAlign: 'right', marginBottom: 0 }}>
+            <Space>
+              <Button onClick={() => setEditModalVisible(false)}>取消</Button>
+              <Button type="primary" htmlType="submit" loading={editLoading}>
+                保存修改
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <Footer />
     </div>

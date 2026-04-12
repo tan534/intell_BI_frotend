@@ -10,7 +10,6 @@ export default [
   { path: '/welcome', name: '欢迎', icon: 'smile', component: './Welcome' },
   { path: '/home', name: '图表主页', icon: 'home', component: './Home' },
   { path: '/add', name: '新添图表', icon: 'plus', component: './AddChart' },
-  { path: '/add/:id', name: '修改图表', icon: 'plus', component: './AddChart' },
   {
     path: '/admin',
     name: '管理页',
