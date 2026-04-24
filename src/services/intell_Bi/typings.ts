@@ -10,7 +10,6 @@ interface BaseResponseGenChart_ {
   };
 }
 
-
   type BaseResponseBoolean_ = {
     code?: number;
     data?: boolean;
@@ -89,6 +88,8 @@ interface BaseResponseGenChart_ {
     isDelete?: number;
     updateTime?: string;
     userId?: number;
+    message?: string;
+    status?: string;
   };
 
 // 图表查询请求（查详情用）
@@ -104,6 +105,7 @@ interface ChartGetRequest {
   };
 
   type ChartQueryRequest = {
+    chartName?: string;
     chartData?: string;
     chartType?: string;
     current?: number;

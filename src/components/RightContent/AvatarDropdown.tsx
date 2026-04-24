@@ -5,7 +5,7 @@ import {
 } from '@ant-design/icons';
 import { history, useModel } from '@umijs/max';
 import type { MenuProps } from 'antd';
-import { Spin } from 'antd';
+import { Avatar, Space, Spin } from 'antd';
 import { createStyles } from 'antd-style';
 import React from 'react';
 import { flushSync } from 'react-dom';
@@ -38,6 +38,10 @@ const useStyles = createStyles(({ token }) => {
         backgroundColor: token.colorBgTextHover,
       },
     },
+    avatar: {
+      backgroundColor: '#1890ff',
+      marginRight: 8,
+    },
   };
 });
 
@@ -45,9 +49,9 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
   menu,
   children,
 }) => {
-  /**
-   * 退出登录，并且将当前的 url 保存
-   */
+  const { styles } = useStyles();
+  const { initialState, setInitialState } = useModel('@@initialState');
+
   const loginOut = async () => {
     await userLogoutUsingPost();
     const { search, pathname } = window.location;
@@ -55,9 +59,7 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
     const searchParams = new URLSearchParams({
       redirect: pathname + search,
     });
-    /** 此方法会跳转到 redirect 参数所在的位置 */
     const redirect = urlParams.get('redirect');
-    // Note: There may be security issues, please note
     if (window.location.pathname !== '/user/login' && !redirect) {
       history.replace({
         pathname: '/user/login',
@@ -65,9 +67,6 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
       });
     }
   };
-  const { styles } = useStyles();
-
-  const { initialState, setInitialState } = useModel('@@initialState');
 
   const onMenuClick: MenuProps['onClick'] = (event) => {
     const { key } = event;
@@ -83,13 +82,7 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
 
   const loading = (
     <span className={styles.action}>
-      <Spin
-        size="small"
-        style={{
-          marginLeft: 8,
-          marginRight: 8,
-        }}
-      />
+      <Spin size="small" style={{ marginLeft: 8, marginRight: 8 }} />
     </span>
   );
 
@@ -128,6 +121,18 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
     },
   ];
 
+  // ✅ 直接使用 UserOutlined 图标作为头像
+  // const defaultAvatar = (
+  //   <Space className={styles.action}>
+  //     <Avatar 
+  //       size="small" 
+  //       icon={<UserOutlined />}
+  //       className={styles.avatar}
+  //     />
+  //     <span>{currentUser.userName}</span>
+  //   </Space>
+  // );
+
   return (
     <HeaderDropdown
       menu={{
@@ -136,7 +141,7 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
         items: menuItems,
       }}
     >
-      {children}
+      {children || defaultAvatar}
     </HeaderDropdown>
   );
 };

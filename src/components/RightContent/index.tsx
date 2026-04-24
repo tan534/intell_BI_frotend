@@ -1,8 +1,18 @@
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import '@umijs/max';
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      UmiSelectLang: any;
+    }
+  }
+}
+
 export type SiderTheme = 'light' | 'dark';
 export const SelectLang: React.FC = () => {
   return (
+    // @ts-ignore
     <UmiSelectLang
       style={{
         padding: 4,

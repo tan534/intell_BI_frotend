@@ -1,13 +1,19 @@
 import { Footer } from '@/components';
-import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
-import { 
-  Button, 
-  Empty, 
-  message, 
-  Card, 
-  Row, 
-  Col, 
-  Tag, 
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
+import {
+  Button,
+  Empty,
+  message,
+  Card,
+  Row,
+  Col,
+  Tag,
   Typography,
   Popconfirm,
   Skeleton,
@@ -15,11 +21,12 @@ import {
   Form,
   Input,
   Select,
-  Space
+  Space,
+  Pagination,
 } from 'antd';
-import { Helmet, history, useModel } from '@umijs/max';
+import { Helmet, history } from '@umijs/max';
 import { createStyles } from 'antd-style';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactECharts from 'echarts-for-react';
 import Settings from '../../../config/defaultSettings';
 import {
@@ -40,8 +47,16 @@ const CHART_TYPE_MAP: Record<string, { text: string; color: string }> = {
   stack: { text: '堆叠图', color: 'geekblue' },
 };
 
-// 图表类型选项
+// 状态映射
+const STATUS_MAP: Record<string, { text: string; color: string }> = {
+  wait: { text: '等待生成', color: 'default' },
+  processing: { text: '生成中', color: 'processing' },
+  succeed: { text: '生成成功', color: 'success' },
+  failed: { text: '生成失败', color: 'error' },
+};
+
 const CHART_TYPE_OPTIONS = [
+  { value: '', label: '全部类型' },
   { value: 'line', label: '折线图' },
   { value: 'bar', label: '柱状图' },
   { value: 'stack', label: '堆叠图' },
@@ -49,428 +64,353 @@ const CHART_TYPE_OPTIONS = [
   { value: 'radar', label: '雷达图' },
 ];
 
-const useStyles = createStyles(({ token }) => {
-  return {
-    container: {
-      minHeight: '100vh',
-      background: '#f5f7fa',
-      padding: '24px',
+const useStyles = createStyles(({ token }) => ({
+  container: {
+    minHeight: '100vh',
+    background: '#f5f7fa',
+    padding: '24px',
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    padding: '20px 24px',
+    background: token.colorBgContainer,
+    borderRadius: token.borderRadiusLG,
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+  },
+  titleSection: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 24,
+    flex: 1,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 600,
+    color: token.colorTextHeading,
+    margin: 0,
+  },
+  filterSection: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  },
+  chartGrid: {
+    marginBottom: 24,
+  },
+  chartCard: {
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    borderRadius: 12,
+    boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
+  },
+  cardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  chartName: {
+    fontSize: 18,
+    fontWeight: 600,
+    margin: 0,
+  },
+  tagGroup: {
+    display: 'flex',
+    gap: 6,
+  },
+  chartMeta: {
+    marginBottom: 16,
+    padding: 12,
+    background: '#fafafa',
+    borderRadius: 8,
+  },
+  metaItem: {
+    marginBottom: 8,
+    '&:last-child': {
+      marginBottom: 0,
     },
-    header: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 24,
-      padding: '20px 24px',
-      background: token.colorBgContainer,
-      borderRadius: token.borderRadiusLG,
-      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-    },
-    title: {
-      fontSize: 24,
-      fontWeight: 600,
-      color: token.colorTextHeading,
-      margin: 0,
-    },
-    chartGrid: {
-      marginBottom: 24,
-    },
-    chartCard: {
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      borderRadius: 12,
-      boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
-      transition: 'all 0.3s ease',
-      '&:hover': {
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-        transform: 'translateY(-2px)',
-      },
-    },
-    cardHeader: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 16,
-    },
-    chartName: {
-      fontSize: 18,
-      fontWeight: 600,
-      color: token.colorTextHeading,
-      margin: 0,
-      flex: 1,
-    },
-    chartType: {
-      marginLeft: 8,
-    },
-    chartMeta: {
-      marginBottom: 16,
-      padding: 12,
-      background: '#fafafa',
-      borderRadius: 8,
-    },
-    metaItem: {
-      marginBottom: 8,
-      '&:last-child': {
-        marginBottom: 0,
-      },
-    },
-    metaLabel: {
-      fontSize: 13,
-      color: token.colorTextSecondary,
-      marginRight: 8,
-    },
-    metaValue: {
-      fontSize: 14,
-      color: token.colorText,
-    },
-    analysisResult: {
-      marginBottom: 16,
-      padding: 12,
-      background: '#f6ffed',
-      borderRadius: 8,
-      border: '1px solid #b7eb8f',
-      maxHeight: 120,
-      overflowY: 'auto',
-    },
-    chartContainer: {
-      flex: 1,
-      minHeight: 280,
-      width: '100%',
-      marginTop: 'auto',
-    },
-    cardFooter: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginTop: 16,
-      paddingTop: 16,
-      borderTop: `1px solid ${token.colorBorderSecondary}`,
-    },
-    createTime: {
-      fontSize: 13,
-      color: token.colorTextSecondary,
-    },
-    actions: {
-      display: 'flex',
-      gap: 8,
-    },
-    paginationContainer: {
-      display: 'flex',
-      justifyContent: 'center',
-      marginTop: 32,
-      marginBottom: 24,
-    },
-    emptyContainer: {
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: 400,
-      background: token.colorBgContainer,
-      borderRadius: 12,
-    },
-    loadingContainer: {
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: 400,
-    },
-  };
-});
+  },
+  metaLabel: {
+    fontSize: 13,
+    color: token.colorTextSecondary,
+  },
+  analysisResult: {
+    marginBottom: 16,
+    padding: 12,
+    background: '#f6ffed',
+    borderRadius: 8,
+    border: '1px solid #b7eb8f',
+    maxHeight: 120,
+    overflowY: 'auto',
+  },
+  chartContainer: {
+    flex: 1,
+    minHeight: 280,
+  },
+  cardFooter: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTop: `1px solid ${token.colorBorderSecondary}`,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  paginationContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    margin: '30px 0',
+  },
+  emptyContainer: {
+    minHeight: 400,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+}));
 
 const Home: React.FC = () => {
   const { styles } = useStyles();
-  const { initialState } = useModel('@@initialState');
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [chartList, setChartList] = useState<API.Chart[]>([]);
-  const [total, setTotal] = useState<number>(0);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize] = useState<number>(6); // 每页6条，一行2条就是3行
+  const [total, setTotal] = useState(0);
+  // 固定每页 2 条
+  const pageSize = 2;
+  const [current, setCurrent] = useState(1);
 
-  // 编辑弹窗状态
+  const [searchName, setSearchName] = useState('');
+  const [filterType, setFilterType] = useState('');
+
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [currentEditChart, setCurrentEditChart] = useState<API.Chart | null>(null);
   const [editForm] = Form.useForm();
-  const [editLoading, setEditLoading] = useState(false);
 
-  // 获取图表列表
-  const fetchChartList = useCallback(async (page: number = 1) => {
+  // 生成中自动刷新
+  useEffect(() => {
+    const hasProcessing = chartList.some(item => item.status === 'processing');
+    if (hasProcessing) {
+      const timer = setTimeout(() => {
+        loadData(current);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [chartList, current]);
+
+  // 加载数据
+  const loadData = useCallback(async (page: number) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const res = await listMyChartByPageUsingPost({
+      const params: API.ChartQueryRequest = {
         current: page,
         pageSize: pageSize,
-      });
+      };
+      if (searchName) params.chartName = searchName;
+      if (filterType) params.chartType = filterType;
+
+      const res = await listMyChartByPageUsingPost(params);
       if (res.code === 0 && res.data) {
         setChartList(res.data.records || []);
         setTotal(res.data.total || 0);
-        setCurrentPage(page);
+        setCurrent(page);
       } else {
-        message.error(res.message || '获取图表列表失败');
+        message.error('加载失败');
       }
-    } catch (error) {
-      console.error('获取图表列表异常：', error);
-      message.error('获取图表列表失败，服务器异常');
+    } catch {
+      message.error('网络错误');
     } finally {
       setLoading(false);
     }
-  }, [pageSize]);
+  }, [searchName, filterType]);
 
-  // 初始加载图表列表
+  // 首次加载
   useEffect(() => {
-    fetchChartList(1);
-  }, [fetchChartList]);
-
-  // 删除图表
-  const handleDelete = useCallback(async (id: number) => {
-    try {
-      const res = await deleteChartUsingPost({ id });
-      if (res.code === 0) {
-        message.success('删除图表成功');
-        // 如果当前页只有一条数据且不是第一页，则回到上一页
-        if (chartList.length === 1 && currentPage > 1) {
-          fetchChartList(currentPage - 1);
-        } else {
-          fetchChartList(currentPage);
-        }
-      } else {
-        message.error(res.message || '删除图表失败');
-      }
-    } catch (error) {
-      console.error('删除图表异常：', error);
-      message.error('删除图表失败，服务器异常');
-    }
-  }, [chartList.length, currentPage, fetchChartList]);
-
-  // 打开编辑弹窗
-  const handleOpenEditModal = useCallback((chart: API.Chart) => {
-    setCurrentEditChart(chart);
-    setEditModalVisible(true);
-    // 回填表单
-    editForm.setFieldsValue({
-      chartName: chart.chartName,
-      goal: chart.goal,
-      chartType: chart.chartType,
-    });
-  }, [editForm]);
-
-  // 提交编辑（更新）
-  const handleEditSubmit = useCallback(async (values: any) => {
-    if (!currentEditChart) return;
-    setEditLoading(true);
-    try {
-      const res = await updateChartUsingPost({
-        id: currentEditChart.id!,
-        goal: values.goal,
-        chartName: values.chartName,
-        chartType: values.chartType,
-      });
-
-      if (res.code === 0) {
-        message.success('修改成功！');
-        setEditModalVisible(false);
-        fetchChartList(currentPage); // 刷新当前页
-      } else {
-        message.error(res.message || '修改失败');
-      }
-    } catch (e) {
-      console.error('修改异常:', e);
-      message.error('修改异常');
-    } finally {
-      setEditLoading(false);
-    }
-  }, [currentEditChart, fetchChartList, currentPage]);
-
-  // 新建图表
-  const handleAdd = useCallback(() => {
-    history.push('/add');
+    loadData(1);
   }, []);
 
-  // 解析并规范化图表配置
-  const parseChartOption = useCallback((chartData: string) => {
+  // 搜索
+  const handleSearch = () => {
+    setCurrent(1);
+    loadData(1);
+  };
+
+  // 重置
+  const handleReset = () => {
+    setSearchName('');
+    setFilterType('');
+    setCurrent(1);
+    loadData(1);
+  };
+
+  // 分页切换
+  const onPageChange = (page: number) => {
+    loadData(page);
+  };
+
+  // 删除
+  const handleDelete = async (id: number) => {
+    const res = await deleteChartUsingPost({ id });
+    if (res.code === 0) {
+      message.success('删除成功');
+      loadData(current);
+    } else {
+      message.error('删除失败');
+    }
+  };
+
+  // 解析图表
+  const parseChart = (str?: string) => {
+    if (!str) return null;
     try {
-      if (!chartData) return null;
-      let optionStr = chartData;
-      if (optionStr.startsWith('option = ')) {
-        optionStr = optionStr.replace('option = ', '').replace(';', '');
-      }
-      optionStr = optionStr.replace(/'/g, '"');
-      return JSON.parse(optionStr);
-    } catch (error) {
-      console.error('解析图表配置失败:', error);
+      return JSON.parse(str.replace(/option = /, '').replace(/;/g, ''));
+    } catch {
       return null;
     }
-  }, []);
+  };
 
-  // 渲染图表卡片
-  const renderChartCard = useCallback((chart: API.Chart) => {
-    const chartOption = parseChartOption(chart.genChart || '');
-    const chartTypeInfo = CHART_TYPE_MAP[chart.chartType || ''] || { 
-      text: chart.chartType || '未知类型', 
-      color: 'default' 
-    };
+  // 渲染卡片
+  const renderChartCard = (chart: API.Chart) => {
+    const typeInfo = CHART_TYPE_MAP[chart.chartType || ''] || { text: '未知', color: 'default' };
+    const statusInfo = STATUS_MAP[chart.status || 'succeed'];
+    const option = parseChart(chart.genChart);
 
     return (
-      <Col xs={24} sm={24} md={12} lg={12} xl={12} key={chart.id}>
-        <Card className={styles.chartCard} bodyStyle={{ padding: 20, display: 'flex', flexDirection: 'column', height: '100%' }}>
-          {/* 卡片头部 */}
+      <Col key={chart.id} xs={24} md={12}>
+        <Card className={styles.chartCard} bodyStyle={{ padding: 20 }}>
           <div className={styles.cardHeader}>
-            <h3 className={styles.chartName}>{chart.chartName || '未命名图表'}</h3>
-            <Tag color={chartTypeInfo.color} className={styles.chartType}>
-              {chartTypeInfo.text}
-            </Tag>
+            <h3 className={styles.chartName}>{chart.chartName}</h3>
+            <div className={styles.tagGroup}>
+              <Tag color={typeInfo.color}>{typeInfo.text}</Tag>
+              <Tag color={statusInfo.color}>{statusInfo.text}</Tag>
+            </div>
           </div>
 
-          {/* 图表元信息 */}
           <div className={styles.chartMeta}>
             <div className={styles.metaItem}>
               <Text className={styles.metaLabel}>分析目标：</Text>
-              <Text className={styles.metaValue}>{chart.goal || '暂无'}</Text>
+              <Text>{chart.goal}</Text>
             </div>
           </div>
 
-          {/* 分析结论 */}
-          {chart.genResult && (
-            <div className={styles.analysisResult}>
-              <Text strong style={{ fontSize: 13, marginBottom: 6, display: 'block' }}>
-                分析结论：
-              </Text>
-              <Paragraph 
-                ellipsis={{ rows: 3, expandable: false }}
-                style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}
-              >
-                {chart.genResult}
-              </Paragraph>
+          {/* 失败提示 */}
+          {chart.status === 'failed' && (
+            <div style={{ color: '#f5222d', marginBottom: 12 }}>
+              失败原因：{chart.genResult || '未知'}
             </div>
           )}
 
-          {/* 图表展示 */}
-          {chartOption ? (
+          {/* 等待/生成中 */}
+          {(chart.status === 'wait' || chart.status === 'processing') && (
+            <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div>
+                <Skeleton active />
+                <div style={{ textAlign: 'center', marginTop: 8 }}>
+                  {chart.status === 'wait' ? '等待生成' : '生成中...'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 成功图表 */}
+          {chart.status === 'succeed' && option && (
             <div className={styles.chartContainer}>
-              <ReactECharts
-                option={chartOption}
-                style={{ height: '100%', width: '100%' }}
-                opts={{ renderer: 'canvas' }}
-                notMerge={true}
-              />
-            </div>
-          ) : (
-            <div style={{ 
-              height: 280, 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              background: '#fafafa',
-              borderRadius: 8,
-              color: '#999',
-            }}>
-              暂无图表数据
+              <ReactECharts option={option} style={{ height: '280px' }} />
             </div>
           )}
 
-          {/* 卡片底部 */}
           <div className={styles.cardFooter}>
-            <Text className={styles.createTime}>
-              创建时间：{chart.createTime ? new Date(chart.createTime).toLocaleString() : '未知'}
+            <Text style={{ fontSize: 12, color: '#666' }}>
+              {chart.createTime ? new Date(chart.createTime).toLocaleString() : ''}
             </Text>
-            <div className={styles.actions}>
-              <Button
-                type="text"
-                size="small"
-                icon={<EditOutlined />}
-                onClick={() => handleOpenEditModal(chart)}
-              >
-                编辑
-              </Button>
-              <Popconfirm
-                title="确认删除"
-                description="确定要删除这个图表吗？此操作不可恢复。"
-                onConfirm={() => handleDelete(chart.id!)}
-                okText="确认"
-                cancelText="取消"
-              >
-                <Button
-                  type="text"
-                  size="small"
-                  danger
-                  icon={<DeleteOutlined />}
-                >
-                  删除
-                </Button>
+            <Space size="small">
+              <Button size="small" onClick={() => handleEdit(chart)}>编辑</Button>
+              <Popconfirm onConfirm={() => handleDelete(chart.id!)} title="确认删除？">
+                <Button size="small" danger>删除</Button>
               </Popconfirm>
-            </div>
+            </Space>
           </div>
         </Card>
       </Col>
     );
-  }, [parseChartOption, styles, handleOpenEditModal, handleDelete]);
+  };
 
-  // 渲染骨架屏
-  const renderSkeleton = useCallback(() => {
-    return (
-      <Row gutter={[24, 24]} className={styles.chartGrid}>
-        {[1, 2, 3, 4, 5, 6].map((item) => (
-          <Col xs={24} sm={24} md={12} lg={12} xl={12} key={item}>
-            <Card style={{ height: 500 }}>
-              <Skeleton active paragraph={{ rows: 8 }} />
-            </Card>
-          </Col>
-        ))}
-      </Row>
-    );
-  }, [styles.chartGrid]);
+  const handleEdit = (chart: API.Chart) => {
+    setCurrentEditChart(chart);
+    editForm.setFieldsValue(chart);
+    setEditModalVisible(true);
+  };
+
+  const submitEdit = async (values: any) => {
+    if (!currentEditChart) return;
+    const res = await updateChartUsingPost({ ...values, id: currentEditChart.id });
+    if (res.code === 0) {
+      message.success('修改成功');
+      setEditModalVisible(false);
+      loadData(current);
+    }
+  };
 
   return (
     <div className={styles.container}>
-      <Helmet>
-        <title>
-          {'我的图表'}
-          {Settings.title && ` - ${Settings.title}`}
-        </title>
-      </Helmet>
-      
-      {/* 页面头部 */}
+      <Helmet title="我的图表" />
       <div className={styles.header}>
-        <h1 className={styles.title}>我的图表</h1>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={handleAdd}
-          size="large"
-        >
+        <div className={styles.titleSection}>
+          <h1 className={styles.title}>我的图表</h1>
+          <div className={styles.filterSection}>
+            <Input
+              placeholder="图表名称"
+              value={searchName}
+              onChange={e => setSearchName(e.target.value)}
+              allowClear
+              style={{ width: 180 }}
+            />
+            <Select
+              options={CHART_TYPE_OPTIONS}
+              value={filterType}
+              onChange={setFilterType}
+              allowClear
+              style={{ width: 140 }}
+            />
+            <Button onClick={handleSearch} icon={<SearchOutlined />} type="primary">
+              搜索
+            </Button>
+            <Button onClick={handleReset} icon={<ReloadOutlined />}>
+              重置
+            </Button>
+          </div>
+        </div>
+        <Button onClick={() => history.push('/add')} type="primary" icon={<PlusOutlined />}>
           新建图表
         </Button>
       </div>
 
-      {/* 图表列表 */}
       {loading ? (
-        renderSkeleton()
+        <Row gutter={[24, 24]}>
+          <Col md={12}><Card><Skeleton active /></Card></Col>
+          <Col md={12}><Card><Skeleton active /></Card></Col>
+        </Row>
       ) : chartList.length > 0 ? (
         <>
           <Row gutter={[24, 24]} className={styles.chartGrid}>
-            {chartList.map(chart => renderChartCard(chart))}
+            {chartList.map(item => renderChartCard(item))}
           </Row>
+          {/* 分页 每页2条 */}
+          <div className={styles.paginationContainer}>
+            <Pagination
+              current={current}
+              total={total}
+              pageSize={pageSize}
+              onChange={onPageChange}
+              showTotal={(t) => `共 ${t} 条`}
+              showQuickJumper
+            />
+          </div>
         </>
       ) : (
         <div className={styles.emptyContainer}>
-          <Empty
-            description={
-              <span style={{ fontSize: 16, color: '#999' }}>
-                还没有创建任何图表，快来创建你的第一个图表吧！
-              </span>
-            }
-          >
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleAdd}
-              size="large"
-              style={{ marginTop: 16 }}
-            >
-              立即创建
-            </Button>
-          </Empty>
+          <Empty description="暂无图表" />
         </div>
       )}
 
@@ -479,62 +419,17 @@ const Home: React.FC = () => {
         title="编辑图表"
         open={editModalVisible}
         onCancel={() => setEditModalVisible(false)}
-        footer={null}
-        width={550}
-        destroyOnClose
-        maskClosable={false}
+        onOk={() => editForm.submit()}
       >
-        <Form
-          form={editForm}
-          layout="vertical"
-          onFinish={handleEditSubmit}
-          initialValues={{ chartType: 'line' }}
-        >
-          <Form.Item
-            name="chartName"
-            label="图表名称"
-            rules={[
-              { required: true, message: '请输入图表名称' },
-              { max: 50, message: '图表名称不能超过50个字符' }
-            ]}
-          >
-            <Input placeholder="请输入图表名称" maxLength={50} showCount />
+        <Form form={editForm} layout="vertical">
+          <Form.Item name="chartName" label="图表名称" rules={[{ required: true }]}>
+            <Input />
           </Form.Item>
-
-          <Form.Item
-            name="goal"
-            label="分析目标"
-            rules={[
-              { required: true, message: '请输入分析目标' },
-              { max: 200, message: '分析目标不能超过200个字符' }
-            ]}
-          >
-            <Input.TextArea 
-              rows={4} 
-              placeholder="请输入分析目标" 
-              maxLength={200} 
-              showCount 
-            />
+          <Form.Item name="goal" label="分析目标" rules={[{ required: true }]}>
+            <Input.TextArea />
           </Form.Item>
-
-          <Form.Item
-            name="chartType"
-            label="图表类型"
-            rules={[{ required: true, message: '请选择图表类型' }]}
-          >
-            <Select 
-              options={CHART_TYPE_OPTIONS} 
-              placeholder="请选择图表类型"
-            />
-          </Form.Item>
-
-          <Form.Item style={{ textAlign: 'right', marginBottom: 0 }}>
-            <Space>
-              <Button onClick={() => setEditModalVisible(false)}>取消</Button>
-              <Button type="primary" htmlType="submit" loading={editLoading}>
-                保存修改
-              </Button>
-            </Space>
+          <Form.Item name="chartType" label="图表类型">
+            <Select options={CHART_TYPE_OPTIONS.filter(i => i.value)} />
           </Form.Item>
         </Form>
       </Modal>

@@ -1,10 +1,7 @@
 import { Footer } from '@/components';
 import {
-  AlipayCircleOutlined,
   LockOutlined,
-  TaobaoCircleOutlined,
   UserOutlined,
-  WeiboCircleOutlined,
   UserAddOutlined,
 } from '@ant-design/icons';
 import {
@@ -12,12 +9,11 @@ import {
   ProFormText,
 } from '@ant-design/pro-components';
 import { Helmet, useModel, Link, history } from '@umijs/max';
-import { Alert, App, Tabs } from 'antd';
+import { App, Tabs } from 'antd';
 import { createStyles } from 'antd-style';
-import React, { useEffect, useState } from 'react';
+import React, {useState } from 'react';
 import { flushSync } from 'react-dom';
 import Settings from '../../../../config/defaultSettings';
-import { listChartByPageUsingPost } from '@/services/intell_Bi/chartController';
 import { getLoginUserUsingGet,userLoginUsingPost} from '@/services/intell_Bi/userController';
 const useStyles = createStyles(({ token }) => {
   return {
@@ -45,9 +41,8 @@ const useStyles = createStyles(({ token }) => {
 });
 
 const Login: React.FC = () => {
-  const [userLoginState, setUserLoginState] = useState<API.UserLoginRequest>({});
   const [type, setType] = useState<string>('account');
-  const { initialState, setInitialState } = useModel('@@initialState');
+  const {setInitialState } = useModel('@@initialState');
   const { styles } = useStyles();
   const { message } = App.useApp();
 
